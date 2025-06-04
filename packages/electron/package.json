@@ -1,0 +1,61 @@
+{
+  "name": "@superglue/electron",
+  "version": "0.1.0",
+  "description": "Superglue Desktop Application",
+  "main": "dist/src/main.js",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "npm run build:main && npm run build:preload",
+    "build:main": "tsc --project tsconfig.json",
+    "build:preload": "tsc --project tsconfig.preload.json",
+    "dev:electron": "npm run build && electron dist/src/main.js",
+    "start": "npm run build && electron dist/src/main.js",
+    "pack": "npm run build && electron-builder --dir"
+  },
+  "dependencies": {
+    "@superglue/core": "file:../core",
+    "@superglue/shared": "file:../shared",
+    "electron-is-dev": "^3.0.1",
+    "electron-log": "^5.0.1",
+    "electron-store": "^10.0.0",
+    "electron-updater": "^6.1.7",
+    "express": "^4.18.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.0",
+    "@types/node": "^20.17.19",
+    "electron": "36.3.2",
+    "electron-builder": "^26.0.12",
+    "typescript": "^5.7.3"
+  },
+  "build": {
+    "appId": "com.superglue.desktop",
+    "productName": "Superglue",
+    "directories": {
+      "output": "./dist-electron"
+    },
+    "files": [
+      "dist/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../../.env",
+        "to": ".env"
+      },
+      {
+        "from": "../web/dist/web",
+        "to": "web"
+      },
+      {
+        "from": "src/tray-icon.ico",
+        "to": "tray-icon.ico"
+      }
+    ],
+    "win": {
+      "target": "dir"
+    }
+  },
+  "author": "Superglue Team",
+  "license": "MIT"
+}

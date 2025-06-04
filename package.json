@@ -1,0 +1,32 @@
+{
+  "name": "superglue",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "packageManager": "npm@11.0.0",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --filter=@superglue/web --filter=@superglue/core",
+    "dev:electron": "turbo run dev:electron --filter=@superglue/electron",
+    "start": "turbo run start --filter=@superglue/web --filter=@superglue/core",
+    "pack": "npm run build && npm run pack --workspace=@superglue/electron",
+    "test": "turbo run test",
+    "test:coverage": "turbo run test:coverage",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.50.1",
+    "@superglue/client": "^2.3.18",
+    "dotenv": "^16.4.7",
+    "dotenv-cli": "^8.0.0",
+    "geist": "^1.4.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "@types/node": "^20.17.19",
+    "turbo": "^2.4.4",
+    "typescript": "^5.7.3"
+  }
+}

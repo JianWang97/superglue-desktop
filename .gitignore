@@ -1,0 +1,14 @@
+.vscode
+**/.env
+dist
+dist-electron
+node_modules
+**/.turbo
+.DS_Store
+**/.next
+build.sh
+diff.txt
+diff.sh
+out/
+**/superglue_data.json
+offline-cli-tools

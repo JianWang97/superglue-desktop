@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": ".",
+    "lib": ["es2020", "dom"],
+    "types": ["node"],
+    "module": "nodenext",
+    "target": "es2020",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "sourceMap": true, // This enables source map generation
+    "moduleResolution": "nodenext",
+  },  
+  "include": ["src/main.ts"]
+} 

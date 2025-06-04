@@ -1,0 +1,117 @@
+---
+title: "Welcome to superglue 🍯"
+description: "Self-healing integration agent. Connect to any API, always get the data you want."
+---
+
+superglue is a self-healing integration agent. Deploy it as a proxy between you and any complex or legacy API, and always get the data you want in the format you expect.
+
+Prompt superglue in natural language (e.g. "get all issues from jira"), provide an API URL, and superglue handles the rest:
+- Generates API configs by analyzing docs
+- Handles pagination, authentication, retries
+- Creates deterministic transformations (using JSONata)
+- Validates and fixes data to match your schema
+- Uses LLMs only for config and mapping, so runtime is fast and cheap
+
+It's open source and easy to run in your own infra.
+
+## Core Functionality
+
+* Understands schema and format of data source
+
+* Transforms data sources into your target schema
+
+* Handles extraction, validation, and transformation automatically
+
+* Creates deterministic transformation instructions using LLMs
+
+* Validates output against JSON schemas
+
+* Supports monitoring, error handling, self-healing out of the box
+
+* Real-time log streaming via GraphQL subscriptions
+
+* Use as a drop-in replacement for any API integration or as lightweight ETL
+
+## Quick Start
+
+1. **Get Access**
+
+Get your API key at [https://app.superglue.cloud](https://superglue.cloud) and sign up for early access to the hosted version. Alternatively, you can [self-host](/guides/self-hosting) superglue.
+
+1. **Install the SDK**
+
+```bash
+# Install the SDK
+npm install @superglue/client
+```
+
+1. **Make Your First Call**
+
+```typescript
+import { SuperglueClient } from "@superglue/client";
+
+const superglue = new SuperglueClient({
+  apiKey: "YOUR_API_KEY"
+});
+
+// Transform any API response with a single call
+const result = await superglue.call({
+  endpoint: {
+    id: "futuramaapi",
+    urlHost: "https://futuramaapi.com",
+    instruction: "get all characters from the show from the graphql api",
+    documentation: "https://futuramaapi.com/graphql",
+    responseSchema: {
+      type: "object",
+      properties: {
+        characters: {
+          type: "array",  
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              species: { type: "string", description: "lowercased" }
+            }
+          }
+        }
+      }
+    }
+  }
+});
+```
+
+## Next Steps
+
+* See [example use cases](/examples) for common integration patterns
+
+* Learn about [advanced configuration](/api-reference/overview)
+
+* Check out our [self-hosting guide](/self-hosting) for deploying your own instance
+
+* Explore [real-time log subscriptions](/api-reference/subscriptions) for monitoring and debugging
+
+## Requirements
+
+* Node.js 16+ for the client SDK
+
+* For self-hosting:
+
+  * Docker 20.10.0+
+
+  * Redis 6.0+
+
+  * OpenAI API key
+
+## Support & Resources
+
+* [API Reference](/api-reference/overview)
+
+* [GitHub Repository](https://github.com/superglue-ai/superglue)
+
+* [Discord Community](https://discord.gg/vUKnuhHtfW)
+
+* Email: [stefan@superglue.cloud](mailto:stefan@superglue.cloud)
+
+***
+
+Ready to simplify your API integrations? [Get started now](https://superglue.cloud)
