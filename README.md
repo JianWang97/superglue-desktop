@@ -93,7 +93,7 @@ npm run dev:electron
 
 
 ### 构建与打包
-
+目前仅支持 Windows X64 平台的打包。
 
 #### 构建桌面应用
 ```bash
