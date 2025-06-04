@@ -1,7 +1,7 @@
 .vscode
 **/.env
 dist
-dist-electron
+pack-electron
 node_modules
 **/.turbo
 .DS_Store
