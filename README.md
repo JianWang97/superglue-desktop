@@ -119,18 +119,6 @@ npm run pack
 
 
 
-
-## 许可证
-
-本项目基于 MIT 许可证开源。详情请查看 [LICENSE](./LICENSE) 文件。
-
-## 致谢
-
-- 感谢 [superglue](https://github.com/superglue-ai/superglue) 项目提供的基础架构
-- 感谢所有贡献者的努力和支持
-
----
-
 <p align="center">
   如果这个项目对您有帮助，请考虑给我们一个 ⭐️
 </p>

@@ -53,6 +53,7 @@
       }
     ],
     "win": {
+      "icon": "src/easyHIS.png",
       "target": [
         {
           "target": "nsis",

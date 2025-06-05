@@ -1,7 +1,8 @@
 import EventEmitter from "events";
 import { pino } from "pino";
 import { LogEntry, Metadata } from "@superglue/shared";
-  
+
+
 const levelMap: Record<number, 'info' | 'error' | 'warn' | 'debug'> = {
     20: 'debug',
     30: 'info',
@@ -12,7 +13,6 @@ const levelMap: Record<number, 'info' | 'error' | 'warn' | 'debug'> = {
 // Single event emitter instance for all logs
 export const logEmitter = new EventEmitter();
   
-// Create base Pino logger with event emission
 export const logger = pino({
     level: 'debug',
     base: { service: 'superglue' },

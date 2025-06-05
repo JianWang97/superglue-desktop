@@ -1,6 +1,10 @@
 // ==================== Imports ====================
 // External imports
-import { logMessage, startServer as startCoreServer } from "@superglue/core";
+import {
+  logEmitter,
+  logMessage,
+  startServer as startCoreServer,
+} from "@superglue/core";
 import { config } from "dotenv";
 import express from "express";
 import { createServer, Server } from "http";
@@ -75,16 +79,19 @@ const initializeEnvironment = (): void => {
 function checkSingleInstance(): boolean {
   // 尝试获取单例锁
   singleInstanceLock = app.requestSingleInstanceLock();
-  
+
   if (!singleInstanceLock) {
-    logMessage("warn", "Another instance of the application is already running");
+    logMessage(
+      "warn",
+      "Another instance of the application is already running"
+    );
     return false;
   }
 
   // 当第二个实例尝试启动时的处理
-  app.on('second-instance', (event, commandLine, workingDirectory) => {
+  app.on("second-instance", (event, commandLine, workingDirectory) => {
     logMessage("info", "Second instance detected, focusing existing window");
-    
+
     // 如果窗口存在，显示并聚焦
     if (mainWindow) {
       if (mainWindow.isMinimized()) {
@@ -236,9 +243,13 @@ function hideWindow(): void {
  * 创建窗口并加载应用
  */
 async function createWindow(): Promise<void> {
+  // 获取应用图标
+  const appIcon = getAppIcon();
+
   // 创建浏览器窗口
   mainWindow = new BrowserWindow({
     ...WINDOW_CONFIG,
+    icon: appIcon, // 设置窗口图标
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -341,24 +352,32 @@ function createTray(): void {
 }
 
 /**
- * 获取托盘图标
+ * 获取应用图标
  */
-function getTrayIcon(): Electron.NativeImage {
+function getAppIcon(): Electron.NativeImage {
   const iconPath = app.isPackaged
     ? path.join(process.resourcesPath, "tray-icon.ico")
-    : path.join(__dirname,"..",".." ,"src","tray-icon.ico");
+    : path.join(__dirname, "..", "..", "src", "tray-icon.ico");
 
   try {
-    const trayIcon = nativeImage.createFromPath(iconPath);
-    if (!trayIcon.isEmpty()) {
-      return trayIcon;
+    const appIcon = nativeImage.createFromPath(iconPath);
+    if (!appIcon.isEmpty()) {
+      return appIcon;
     }
   } catch (error) {
-    logMessage("warn", `托盘图标加载失败，使用默认图标: ${error}`);
+    logMessage("warn", `应用图标加载失败，使用默认图标: ${error}`);
   }
 
   // 如果加载失败，返回空图标
   return nativeImage.createEmpty();
+}
+
+/**
+ * 获取托盘图标
+ */
+function getTrayIcon(): Electron.NativeImage {
+  // 托盘图标和应用图标使用同一个文件
+  return getAppIcon();
 }
 
 /**
@@ -402,6 +421,39 @@ async function handleServerRestart(): Promise<void> {
   }
 }
 
+// ==================== Log Management Functions ====================
+
+/**
+ * 设置日志文件写入功能
+ */
+function setupLogFileWriter(): void {
+  // 确保日志目录存在
+  const logDir = path.join(getAppPath(), "logs");
+  if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true });
+  }
+
+  // 监听日志事件并写入文件
+  logEmitter.on("log", (logEntry) => {
+    // 根据日志时间生成日期格式的文件名
+    const logDate = new Date(logEntry.timestamp);
+    const dateStr = logDate.toISOString().split("T")[0]; // YYYY-MM-DD 格式
+    const logFilePath = path.join(logDir, `app-${dateStr}.log`);
+
+    const timestamp = logDate.toISOString();
+    const logLine = `[${timestamp}] [${logEntry.level}] ${logEntry.message}${
+      logEntry.orgId ? ` (orgId: ${logEntry.orgId})` : ""
+    }${logEntry.runId ? ` (runId: ${logEntry.runId})` : ""}\n`;
+
+    // 异步写入文件，避免阻塞主线程
+    fs.appendFile(logFilePath, logLine, (err) => {
+      if (err) {
+        console.error("Failed to write log to file:", err);
+      }
+    });
+  });
+}
+
 // ==================== IPC Handlers ====================
 
 /**
@@ -422,7 +474,8 @@ function setupIpcHandlers(): void {
  * 应用程序初始化
  */
 async function initializeApp(): Promise<void> {
-
+  // 设置日志文件写入功能
+  setupLogFileWriter();
 
   // 初始化环境配置
   initializeEnvironment();
@@ -475,7 +528,7 @@ app.on("window-all-closed", () => {
 // 应用即将退出时的清理
 app.on("before-quit", () => {
   isQuitting = true;
-  
+
   // 释放单例锁
   if (singleInstanceLock) {
     logMessage("info", "Releasing single instance lock");
