@@ -20,7 +20,6 @@ export class FileStore implements DataStore {
   };
 
   private filePath: string;
-
   constructor(storageDir = '/data') {
     this.storage = {
       apis: new Map(),
@@ -44,7 +43,41 @@ export class FileStore implements DataStore {
     this.filePath = path.join(storageDir, 'superglue_data.json');
     logMessage('info', `File Datastore: Using storage path: ${this.filePath}`);
     
-    this.initializeStorage();
+    this.initializeStorageSync();
+  }
+  private initializeStorageSync() {
+    try {
+      // Ensure the directory exists with proper permissions
+      fs.mkdirSync(path.dirname(this.filePath), { recursive: true, mode: 0o755 });
+      logMessage('info', `File Datastore: Created/verified directory: ${path.dirname(this.filePath)}`);
+      
+      const data = fs.readFileSync(this.filePath, 'utf-8');
+      const parsed = JSON.parse(data, (key, value) => {
+        // Convert ISO date strings back to Date objects
+        if (typeof value === 'string' && value.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)) {
+          return new Date(value);
+        }
+        return value;
+      });
+      logMessage('info', 'File Datastore: Successfully loaded existing data');
+      
+      // Convert plain objects back to Maps
+      this.storage = {
+        apis: new Map(Object.entries(parsed.apis || {})),
+        extracts: new Map(Object.entries(parsed.extracts || {})),
+        transforms: new Map(Object.entries(parsed.transforms || {})),
+        runs: new Map(Object.entries(parsed.runs || {})),
+        runsIndex: new Map(Object.entries(parsed.runsIndex || {})),
+        workflows: new Map(Object.entries(parsed.workflows || {})),
+        tenant: {
+          email: parsed.tenant?.email || null,
+          emailEntrySkipped: parsed.tenant?.emailEntrySkipped || false
+        }
+      };
+    } catch (error) {
+      logMessage('info', 'File Datastore: No existing data found, starting with empty storage');
+      this.persistSync();
+    }
   }
 
   private async initializeStorage() {
@@ -80,6 +113,24 @@ export class FileStore implements DataStore {
       logMessage('info', 'File Datastore: No existing data found, starting with empty storage');
       await this.persist();
     }
+  }  private persistSync() {
+    try {
+      const serialized = {
+        apis: Object.fromEntries(this.storage.apis),
+        extracts: Object.fromEntries(this.storage.extracts),
+        transforms: Object.fromEntries(this.storage.transforms),
+        runs: Object.fromEntries(this.storage.runs),
+        runsIndex: Object.fromEntries(this.storage.runsIndex),
+        workflows: Object.fromEntries(this.storage.workflows),
+        tenant: this.storage.tenant
+      };
+      
+      // Direct write for synchronous operations to avoid permission issues
+      fs.writeFileSync(this.filePath, JSON.stringify(serialized, null, 2), { mode: 0o644 });
+    } catch (error) {
+      logMessage('error', 'Failed to persist data: ' + error);
+      throw error;
+    }
   }
 
   private async persist() {
@@ -93,10 +144,20 @@ export class FileStore implements DataStore {
         workflows: Object.fromEntries(this.storage.workflows),
         tenant: this.storage.tenant
       };
-      // Use temporary file to ensure atomic writes
-      const tempPath = `${this.filePath}.tmp`;
-      fs.writeFileSync(tempPath, JSON.stringify(serialized, null, 2), { mode: 0o644 });
-      fs.renameSync(tempPath, this.filePath);
+      
+      // Try atomic write first, fallback to direct write on Windows permission issues
+      try {
+        const tempPath = `${this.filePath}.tmp`;
+        fs.writeFileSync(tempPath, JSON.stringify(serialized, null, 2), { mode: 0o644 });
+        fs.renameSync(tempPath, this.filePath);
+      } catch (renameError) {
+        if (renameError.code === 'EPERM' || renameError.code === 'EACCES') {
+          // Fallback to direct write for Windows permission issues
+          fs.writeFileSync(this.filePath, JSON.stringify(serialized, null, 2), { mode: 0o644 });
+        } else {
+          throw renameError;
+        }
+      }
     } catch (error) {
       logMessage('error', 'Failed to persist data: ' + error);
       throw error;

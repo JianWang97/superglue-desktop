@@ -74,7 +74,7 @@ describe('API Utilities', () => {
       });
 
       expect(result.messages).toBeInstanceOf(Array);
-      expect(result.messages).toHaveLength(3); // system, user, and assistant messages
+      expect(result.messages).toHaveLength(4); // system, user, and assistant messages
 
       // Verify OpenAI was called correctly
       expect((OpenAI as any).prototype.chat.completions.create).toHaveBeenCalledWith(

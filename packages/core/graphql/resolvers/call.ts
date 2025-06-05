@@ -24,10 +24,9 @@ export async function executeApiCall(
   let response: any = null;
   let retryCount = 0;
   let lastError: string | null = null;
-  let messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
-  let documentation: Documentation;
+  let messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];  let documentation: Documentation;
   let success = false;
-  const MaxRetries = process.env.MAX_RETRIES ? parseInt(process.env.MAX_RETRIES) : 0;
+  const MaxRetries = process.env.MAX_RETRIES ? parseInt(process.env.MAX_RETRIES) : 7;
   do {
     try {
       if(retryCount > 0) {
@@ -73,7 +72,7 @@ export async function executeApiCall(
       }
     }
     retryCount++;
-  } while (retryCount < MaxRetries);
+  } while (retryCount <= MaxRetries);
 
   if (!success) {
     telemetryClient?.captureException(new Error(`API call failed after ${retryCount} retries. Last error: ${lastError}`), metadata.orgId, {

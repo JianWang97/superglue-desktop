@@ -9,18 +9,16 @@ describe('FileStore', () => {
   const testOrgId = 'test-org';
   const testDir = './.test-data';
   const testPath = path.join(testDir, 'superglue_data.json');
-
   beforeEach(() => {
     // Clean up any existing test data
     if (fs.existsSync(testPath)) {
       fs.unlinkSync(testPath);
     }
     if (fs.existsSync(testDir)) {
-      fs.rmdirSync(testDir);
+      fs.rmSync(testDir, { recursive: true, force: true });
     }
     store = new FileStore(testDir);
   });
-
   afterEach(async () => {
     await store.clearAll();
     await store.disconnect();
@@ -29,7 +27,7 @@ describe('FileStore', () => {
       fs.unlinkSync(testPath);
     }
     if (fs.existsSync(testDir)) {
-      fs.rmdirSync(testDir);
+      fs.rmSync(testDir, { recursive: true, force: true });
     }
   });
 
