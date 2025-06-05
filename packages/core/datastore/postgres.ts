@@ -89,7 +89,7 @@ export class PostgresStore implements DataStore {
     }
   }
 
-  // Utility functions for mapping fields
+  // Utility functions for mapping fields  
   private mapRowToConfig<T extends { [key: string]: any }>(row: any): T {
     if (!row) return row;
     const mapped: any = { ...row };
@@ -105,6 +105,8 @@ export class PostgresStore implements DataStore {
       Object.assign(mapped, mapped.config);
       delete mapped.config;
     }
+    // Remove internal database fields
+    delete mapped.org_id;
     return mapped;
   }
   private mapRowToRunResult(row: any): any {
