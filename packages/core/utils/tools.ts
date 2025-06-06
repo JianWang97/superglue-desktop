@@ -174,7 +174,7 @@ export async function callAxios(config: AxiosRequestConfig, options: RequestOpti
       const httpsAgent = new https.Agent({
         rejectUnauthorized: false
       });
-      
+      logMessage('debug', `Calling API with config: ${JSON.stringify(config, null, 2)}`);
       const response = await axios({
         ...config,
         validateStatus: null, // Don't throw on any status

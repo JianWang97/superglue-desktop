@@ -15,6 +15,7 @@ import { Input } from '@/src/components/ui/input';
 import { Label } from '@/src/components/ui/label';
 import { useConfig } from '@/src/app/config-context';
 import { useToast } from '@/src/hooks/use-toast';
+import { useSidebar } from '@/src/app/sidebar-context';
 
 interface ConfigDialogProps {
   onConfigUpdate: (config: { superglueEndpoint: string; superglueApiKey: string }) => void;
@@ -23,6 +24,7 @@ interface ConfigDialogProps {
 export function ConfigDialog({ onConfigUpdate }: ConfigDialogProps) {
   const config = useConfig();
   const { toast } = useToast();
+  const { isCollapsed } = useSidebar();
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
     superglueEndpoint: config.superglueEndpoint || '',
@@ -80,16 +82,15 @@ export function ConfigDialog({ onConfigUpdate }: ConfigDialogProps) {
     });
   };
 
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
+  return (    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button
           variant="ghost"
-          size="sm"
-          className="w-full justify-start text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-secondary"
+          size={isCollapsed ? "icon" : "sm"}
+          className={`${isCollapsed ? 'h-8 w-8' : 'w-full justify-start'} text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-secondary`}
         >
-          <Settings className="h-4 w-4 mr-3" />
-          配置设置
+          <Settings className={`h-4 w-4 ${isCollapsed ? '' : 'mr-3'}`} />
+          {!isCollapsed && "配置设置"}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
