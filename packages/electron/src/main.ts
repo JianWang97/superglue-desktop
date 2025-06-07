@@ -14,7 +14,15 @@ import { fileURLToPath } from "url";
 import * as fs from "fs";
 
 // Electron imports
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } from "electron";
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  Tray,
+  Menu,
+  nativeImage,
+  shell,
+} from "electron";
 
 // ==================== Constants ====================
 const STATIC_SERVER_PORT = 3002;
@@ -61,7 +69,7 @@ const initializeEnvironment = (): void => {
   const envPath = path.join(getAppPath(), ".env");
 
   try {
-    config({ path: envPath,override: true });
+    config({ path: envPath, override: true });
     logMessage("info", `✅ Loaded .env from: ${envPath}`);
   } catch (error) {
     logMessage("error", `Failed to load .env file from ${envPath}: ${error}`);
@@ -396,6 +404,10 @@ function createTrayMenu(): Electron.Menu {
     },
     { type: "separator" },
     {
+      label: "编辑环境配置 (.env)",
+      click: openEnvironmentFile,
+    },
+    {
       label: "重启服务器",
       click: handleServerRestart,
     },
@@ -405,6 +417,20 @@ function createTrayMenu(): Electron.Menu {
       click: () => app.quit(),
     },
   ]);
+}
+
+/**
+ * 快速打开 .env 文件进行编辑
+ */
+function openEnvironmentFile(): void {
+  const envPath = path.join(getAppPath(), ".env");
+
+  // 使用系统默认编辑器打开文件
+  shell
+    .openPath(envPath)
+    .catch((error) => {
+      logMessage("error", `打开 .env 文件失败: ${error}`);
+    });
 }
 
 /**
