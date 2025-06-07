@@ -15,6 +15,13 @@ import { createTelemetryPlugin, telemetryMiddleware } from './utils/telemetry.js
 import { logMessage } from "./utils/logs.js";
 import { authMiddleware, validateToken, extractToken } from './auth/auth.js';
 
+// Server instances for restart functionality
+let currentServer: {
+  apolloServer: ApolloServer;
+  httpServer: http.Server;
+  serverCleanup: { dispose: () => void | Promise<void> };
+} | null = null;
+
 // Constants
 export function init() {
   const PORT = process.env.GRAPHQL_PORT || 3000;
@@ -148,13 +155,148 @@ export async function startServer() {
   // Apply Apollo middleware *after* other middlewares
   // Ensure the path matches your desired GraphQL endpoint for HTTP
   app.use('/', expressMiddleware(server, { context: getHttpContext }));
-
   // Modified server startup
   await new Promise<void>((resolve) => httpServer.listen({ port: PORT }, resolve));
 
+  // Store server instances for restart functionality
+  currentServer = {
+    apolloServer: server,
+    httpServer,
+    serverCleanup
+  };
+
   logMessage('info', `🚀 Superglue server ready at http://localhost:${PORT}/ and ws://localhost:${PORT}/`);
+  
+  return currentServer;
 }
 
+/**
+ * 优雅地停止服务器
+ */
+export async function stopServer(): Promise<void> {
+  if (!currentServer) {
+    logMessage('info', 'No server instance to stop');
+    return;
+  }
+
+  try {
+    logMessage('info', 'Stopping Superglue server...');
+    
+    // 停止 Apollo Server - 忽略"server not running"错误
+    try {
+      await currentServer.apolloServer.stop();
+    } catch (error: any) {
+      if (error.message?.includes('not running')) {
+        logMessage('info', 'Apollo Server was already stopped');
+      } else {
+        throw error;
+      }
+    }
+    
+    // 清理 WebSocket 服务器
+    try {
+      await currentServer.serverCleanup.dispose();
+    } catch (error: any) {
+      logMessage('warn', `WebSocket cleanup warning: ${error.message}`);
+    }
+    
+    // 关闭 HTTP 服务器
+    try {
+      await new Promise<void>((resolve, reject) => {
+        // 检查服务器是否正在监听
+        if (!currentServer!.httpServer.listening) {
+          logMessage('info', 'HTTP Server was already closed');
+          resolve();
+          return;
+        }
+        
+        currentServer!.httpServer.close((err) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      });
+    } catch (error: any) {
+      logMessage('warn', `HTTP server close warning: ${error.message}`);
+    }
+
+    currentServer = null;
+    logMessage('info', '✅ Superglue server stopped successfully');
+  } catch (error) {
+    logMessage('error', `Failed to stop server: ${error}`);
+    // 即使出错也清理引用，避免下次重启时出现问题
+    currentServer = null;
+    throw error;
+  }
+}
+
+/**
+ * 检查服务器是否正在运行
+ */
+export function isServerRunning(): boolean {
+  return currentServer !== null && currentServer.httpServer.listening;
+}
+
+/**
+ * 获取当前服务器状态信息
+ */
+export function getServerStatus(): {
+  isRunning: boolean;
+  port?: number;
+  hasApolloServer: boolean;
+  hasHttpServer: boolean;
+  hasWebSocketCleanup: boolean;
+} {
+  if (!currentServer) {
+    return {
+      isRunning: false,
+      hasApolloServer: false,
+      hasHttpServer: false,
+      hasWebSocketCleanup: false
+    };
+  }
+
+  const address = currentServer.httpServer.address();
+  const port = typeof address === 'object' && address ? address.port : undefined;
+
+  return {
+    isRunning: currentServer.httpServer.listening,
+    port,
+    hasApolloServer: !!currentServer.apolloServer,
+    hasHttpServer: !!currentServer.httpServer,
+    hasWebSocketCleanup: !!currentServer.serverCleanup
+  };
+}
+
+/**
+ * 重启服务器
+ */
+export async function restartServer(): Promise<void> {
+  try {
+    logMessage('info', 'Restarting Superglue server...');
+    
+    const status = getServerStatus();
+    logMessage('info', `Server status before restart: ${JSON.stringify(status)}`);
+    
+    // 如果服务器正在运行，先停止
+    if (status.isRunning || currentServer) {
+      await stopServer();
+    }
+    
+    // 等待一小段时间确保端口释放
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // 重新启动服务器
+    await startServer();
+    
+    logMessage('info', '🔄 Superglue server restarted successfully');
+  } catch (error) {
+    logMessage('error', `Failed to restart server: ${error}`);
+    throw error;
+  }
+}
 
 if (!process.versions.electron) {
   startServer().catch((error) => {

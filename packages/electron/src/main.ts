@@ -3,6 +3,7 @@
 import {
   logEmitter,
   logMessage,
+  restartServer,
   startServer as startCoreServer,
 } from "@superglue/core";
 import { config } from "dotenv";
@@ -60,7 +61,7 @@ const initializeEnvironment = (): void => {
   const envPath = path.join(getAppPath(), ".env");
 
   try {
-    config({ path: envPath });
+    config({ path: envPath,override: true });
     logMessage("info", `✅ Loaded .env from: ${envPath}`);
   } catch (error) {
     logMessage("error", `Failed to load .env file from ${envPath}: ${error}`);
@@ -412,9 +413,9 @@ function createTrayMenu(): Electron.Menu {
 async function handleServerRestart(): Promise<void> {
   try {
     logMessage("info", "用户从托盘重启服务器");
+    initializeEnvironment();
     if (serverStarted) {
-      // TODO: 添加重启逻辑
-      logMessage("info", "服务器重启完成");
+      await restartServer();
     }
   } catch (error) {
     logMessage("error", `重启服务器失败: ${error}`);

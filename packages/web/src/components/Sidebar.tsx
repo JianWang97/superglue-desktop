@@ -35,11 +35,10 @@ export function Sidebar() {
     updateConfig(newConfig);
   };  return (
     <div className={`${isCollapsed ? 'w-16' : 'w-64'} ${isCollapsed ? 'min-w-16' : 'min-w-64'} flex-shrink-0 bg-white dark:bg-gray-900 border-r dark:border-gray-800 flex flex-col transition-all duration-300 ease-in-out relative`}>
-      <div className="p-6">
-        <div className="relative mx-auto">
+      <div className={`${isCollapsed ? 'p-3' : 'p-6'}`}>        <div className={`${isCollapsed ? 'flex justify-center' : 'relative mx-auto'}`}>
           {isCollapsed ? (
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">S</span>
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-200 to-purple-200 rounded-lg flex items-center justify-center">
+              <span className="text-gray-700 font-bold text-sm">S</span>
             </div>
           ) : (
             <>
@@ -48,7 +47,7 @@ export function Sidebar() {
             </>
           )}
         </div>
-      </div>      <nav className="flex-1">
+      </div><nav className="flex-1">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
@@ -105,15 +104,15 @@ export function Sidebar() {
                   展开侧边栏
                 </TooltipContent>
               </Tooltip>
-            </TooltipProvider>
-          ) : (
+            </TooltipProvider>          ) : (
             <Button
               variant="ghost"
-              size="icon"
+              size="sm"
               onClick={toggleSidebar}
-              className="h-8 w-8 hover:bg-gray-100 dark:hover:bg-gray-800"
+              className="w-full justify-start text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-secondary"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4 mr-3" />
+              收起侧边栏
             </Button>
           )}
         </div>
