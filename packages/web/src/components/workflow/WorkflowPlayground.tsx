@@ -46,6 +46,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../ui/tooltip";
+import JsonSchemaEditor from "@/src/components/utils/JsonSchemaEditor";
+import RequestBodyEditor from "./RequestBodyEditor";
 
 // StepCard component for individual step display and editing
 interface StepCardProps {
@@ -435,24 +437,21 @@ function StepCard({
                     Add Header
                   </Button>
                 </div>
-              </div>
-
-              {/* Request Body */}
+              </div>              {/* Request Body */}
               {(step.apiConfig?.method === "POST" ||
                 step.apiConfig?.method === "PUT" ||
                 step.apiConfig?.method === "PATCH") && (
-                <div className="space-y-1">
-                  <Label className="text-xs">Request Body</Label>
-                  <Textarea
-                    value={step.apiConfig?.body || ""}
-                    onChange={(e) =>
-                      updateField("apiConfig.body", e.target.value)
-                    }
-                    className="font-mono text-xs h-16 resize-none"
-                    placeholder='{"key": "value", "param": "{variable}"}'
-                    disabled={isApiConfigLocked}
-                  />
-                </div>
+                <RequestBodyEditor
+                  value={step.apiConfig?.body || ""}
+                  onChange={(value) => updateField("apiConfig.body", value)}
+                  disabled={isApiConfigLocked}
+                  contentType={step.apiConfig?.headers?.["Content-Type"] || "application/json"}
+                  onContentTypeChange={(contentType) => {
+                    const headers = { ...(step.apiConfig?.headers || {}) };
+                    headers["Content-Type"] = contentType;
+                    updateField("apiConfig.headers", headers);
+                  }}
+                />
               )}
             </div>
 
@@ -557,6 +556,7 @@ export default function WorkflowPlayground({ id }: { id?: string }) {
   const [finalTransform, setFinalTransform] = useState(`{
   "result": $
 }`);
+  const [responseSchema, setResponseSchema] = useState("{}");
   const [credentials, setCredentials] = useState("");
   const [payload, setPayload] = useState("{}");
   const [loading, setLoading] = useState(false);
@@ -564,6 +564,10 @@ export default function WorkflowPlayground({ id }: { id?: string }) {
   const [result, setResult] = useState(null);
   const [activeResultTab, setActiveResultTab] = useState("finalData");
   const [hiddenSteps, setHiddenSteps] = useState<Set<number>>(new Set());
+  const [isFinalTransformDialogOpen, setIsFinalTransformDialogOpen] =
+    useState(false);
+  const [isResponseSchemaDialogOpen, setIsResponseSchemaDialogOpen] =
+    useState(false);
 
   const updateWorkflowId = (id: string) => {
     const sanitizedId = id
@@ -587,18 +591,26 @@ export default function WorkflowPlayground({ id }: { id?: string }) {
         updateWorkflowId("");
         setStepsText("");
         setFinalTransform("");
+        setResponseSchema("{}");
         setHiddenSteps(new Set()); // 重置隐藏状态
         throw new Error(`Workflow with ID "${idToLoad}" not found.`);
       }
       // Recursively remove null/undefined values from the entire workflow object
-      const cleanedWorkflow = removeNullUndefined(workflow);
-
-      // Extract potentially cleaned steps and finalTransform
+      const cleanedWorkflow = removeNullUndefined(workflow); // Extract potentially cleaned steps and finalTransform
       const cleanedSteps = cleanedWorkflow.steps || []; // Default to empty array if steps were removed
       const cleanedFinalTransform =
-        cleanedWorkflow.finalTransform || `{\n  "result": $\n}`; // Default transform      updateWorkflowId(cleanedWorkflow.id || ''); // Use cleaned ID, default to empty string
+        cleanedWorkflow.finalTransform || `{\n  "result": $\n}`; // Default transform
+      const cleanedResponseSchema = cleanedWorkflow.responseSchema;
+
+      updateWorkflowId(cleanedWorkflow.id || ""); // Use cleaned ID, default to empty string
       setStepsText(JSON.stringify(cleanedSteps, null, 2));
-      setFinalTransform(cleanedFinalTransform);
+      setFinalTransform(cleanedFinalTransform); // 处理 responseSchema
+      if (cleanedResponseSchema) {
+        setResponseSchema(JSON.stringify(cleanedResponseSchema, null, 2));
+      } else {
+        setResponseSchema("{}");
+      }
+
       setHiddenSteps(new Set()); // 重置隐藏状态
       updateWorkflowId(cleanedWorkflow.id || ""); // Use cleaned ID, default to empty string
       toast({
@@ -615,6 +627,7 @@ export default function WorkflowPlayground({ id }: { id?: string }) {
       updateWorkflowId("");
       setStepsText("");
       setFinalTransform("");
+      setResponseSchema("{}");
       setHiddenSteps(new Set()); // 重置隐藏状态
     } finally {
       setLoading(false);
@@ -666,6 +679,7 @@ export default function WorkflowPlayground({ id }: { id?: string }) {
     setFinalTransform(`$.getBreedImage.(
   {"breed": loopValue, "image": message}
 )`);
+    setResponseSchema("{}");
     setHiddenSteps(new Set()); // 重置隐藏状态
 
     toast({
@@ -681,7 +695,6 @@ export default function WorkflowPlayground({ id }: { id?: string }) {
       }
 
       setSaving(true);
-
       const input = {
         id: workflowId,
         steps: JSON.parse(stepsText).map((step: ExecutionStep) => ({
@@ -693,6 +706,10 @@ export default function WorkflowPlayground({ id }: { id?: string }) {
           },
         })),
         finalTransform,
+        ...(responseSchema &&
+          responseSchema !== "{}" && {
+            responseSchema: JSON.parse(responseSchema),
+          }),
       };
 
       const superglueClient = new SuperglueClient({
@@ -712,7 +729,8 @@ export default function WorkflowPlayground({ id }: { id?: string }) {
       toast({
         title: "Workflow saved",
         description: `"${savedWorkflow.id}" saved successfully`,
-      });      router.push(`/workflow?id=${savedWorkflow.id}`);
+      });
+      router.push(`/workflow?id=${savedWorkflow.id}`);
     } catch (error) {
       console.error("Error saving workflow:", error);
       toast({
@@ -756,6 +774,10 @@ export default function WorkflowPlayground({ id }: { id?: string }) {
           },
         })),
         finalTransform,
+        ...(responseSchema &&
+          responseSchema !== "{}" && {
+            responseSchema: JSON.parse(responseSchema),
+          }),
       };
       const parsedCredentials = parseCredentialsHelper(credentials);
       const parsedPayload = JSON.parse(payload || "{}");
@@ -949,9 +971,7 @@ export default function WorkflowPlayground({ id }: { id?: string }) {
                     </Button>
                   </div>{" "}
                 </div>
-                <div
-                  className="flex-1 overflow-y-auto overflow-x-hidden space-y-3 pr-1 max-h-60"
-                >
+                <div className="flex-1 overflow-y-auto overflow-x-hidden space-y-3 pr-1 max-h-60">
                   {(() => {
                     try {
                       const steps = JSON.parse(stepsText || "[]");
@@ -1025,19 +1045,111 @@ export default function WorkflowPlayground({ id }: { id?: string }) {
                     }
                   })()}
                 </div>
-              </div>
-
-              <div className="flex-1 flex flex-col min-h-0">
-                <Label htmlFor="finalTransform" className="mb-1 block">
-                  Final Transformation (JSONata)
-                </Label>
-                <Textarea
-                  id="finalTransform"
-                  value={finalTransform}
-                  onChange={(e) => setFinalTransform(e.target.value)}
-                  placeholder="Enter final transform expression"
-                  className="font-mono resize-none flex-1 min-h-[180px] overflow-auto w-full text-xs"
-                />
+              </div>{" "}
+              <div className="space-y-3 flex-1 min-h-0">
+                {/* Final Transformation and Response Schema in same row */}
+                <div className="flex gap-3 min-h-0">
+                  {" "}
+                  {/* Final Transformation Section */}
+                  <div className="flex flex-col min-h-0 flex-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <Label htmlFor="finalTransform" className="block">
+                        Final Transformation (JSONata)
+                      </Label>
+                      <div className="h-6"></div>{" "}
+                      {/* 占位符，保持与右侧高度一致 */}
+                    </div>
+                    <div
+                      className="h-[80px] border rounded-md p-2 bg-muted/30 flex flex-col justify-center items-center cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => setIsFinalTransformDialogOpen(true)}
+                    >
+                      <div className="text-center">
+                        <Edit className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
+                        <p className="text-xs text-muted-foreground mb-1">
+                          点击编辑 Final Transformation
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {finalTransform.length > 30
+                            ? `${finalTransform.substring(0, 30)}...`
+                            : finalTransform || "未设置"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Response Schema Section */}
+                  <div className="flex flex-col min-h-0 flex-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <Label htmlFor="responseSchema" className="block">
+                        Response JSON Schema
+                      </Label>
+                      <div className="flex items-center gap-1">
+                        {/* <Select
+                          onValueChange={(templateId) => {
+                            if (templateId !== "default") {
+                              const template = responseSchemaTemplates.find(
+                                (t) => t.id === templateId
+                              );
+                              if (template) {
+                                setResponseSchema(
+                                  JSON.stringify(template.schema, null, 2)
+                                );
+                                toast({
+                                  title: "模板已加载",
+                                  description: `已加载"${template.name}"模板`,
+                                });
+                              }
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="h-6 px-2 text-xs w-auto min-w-[60px]">
+                            <SelectValue placeholder="加载" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="default">选择模板</SelectItem>
+                            {responseSchemaTemplates.map((template) => (
+                              <SelectItem key={template.id} value={template.id}>
+                                {template.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select> */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setResponseSchema("{}");
+                            toast({
+                              title: "Response Schema 已重置",
+                              description:
+                                "Response JSON Schema 已重置为空对象",
+                            });
+                          }}
+                          className="h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
+                          title="重置 Response Schema"
+                        >
+                          <Trash2 className="w-3 h-3 mr-1" />
+                          重置
+                        </Button>
+                      </div>
+                    </div>
+                    <div
+                      className="h-[80px] border rounded-md p-2 bg-muted/30 flex flex-col justify-center items-center cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => setIsResponseSchemaDialogOpen(true)}
+                    >
+                      <div className="text-center">
+                        <Edit className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
+                        <p className="text-xs text-muted-foreground mb-1">
+                          点击编辑 Response Schema
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {responseSchema && responseSchema !== "{}"
+                            ? "已配置 Schema"
+                            : "未配置 Schema"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -1066,7 +1178,6 @@ export default function WorkflowPlayground({ id }: { id?: string }) {
           <CardHeader className="py-3 px-4 flex-shrink-0">
             <CardTitle>Results</CardTitle>
           </CardHeader>
-
           <CardContent className="p-0 flex-grow flex flex-col overflow-hidden">
             {result ? (
               <>
@@ -1167,9 +1278,68 @@ export default function WorkflowPlayground({ id }: { id?: string }) {
                 </p>
               </div>
             )}
-          </CardContent>
+          </CardContent>{" "}
         </Card>
       </div>
+      {/* Final Transformation Dialog */}
+      <Dialog
+        open={isFinalTransformDialogOpen}
+        onOpenChange={setIsFinalTransformDialogOpen}
+      >
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>编辑 Final Transformation (JSONata)</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-[400px]">
+            <Textarea
+              value={finalTransform}
+              onChange={(e) => setFinalTransform(e.target.value)}
+              placeholder="输入 JSONata 表达式..."
+              className="min-h-[400px] font-mono text-sm resize-none"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsFinalTransformDialogOpen(false)}
+            >
+              取消
+            </Button>
+            <Button onClick={() => setIsFinalTransformDialogOpen(false)}>
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>{" "}
+      {/* Response Schema Dialog */}
+      <Dialog
+        open={isResponseSchemaDialogOpen}
+        onOpenChange={setIsResponseSchemaDialogOpen}
+      >
+        {" "}
+        <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle>编辑 Response JSON Schema</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-[500px] overflow-y-auto overflow-x-hidden">
+            <JsonSchemaEditor
+              value={responseSchema}
+              onChange={setResponseSchema}
+            />
+          </div>
+          <DialogFooter className="flex-shrink-0">
+            <Button
+              variant="outline"
+              onClick={() => setIsResponseSchemaDialogOpen(false)}
+            >
+              取消
+            </Button>
+            <Button onClick={() => setIsResponseSchemaDialogOpen(false)}>
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

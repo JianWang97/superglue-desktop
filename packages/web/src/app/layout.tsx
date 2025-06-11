@@ -14,7 +14,7 @@ export default function RootLayout({
     postHogHost: process.env.NEXT_PUBLIC_POSTHOG_HOST,
   }
   return (
-    <html lang="en" className={`dark ${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body>
         <ClientWrapper config={config}>
           {children}
