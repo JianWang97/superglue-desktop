@@ -4,6 +4,7 @@ import {
   logEmitter,
   logMessage,
   restartServer,
+  run,
   startServer as startCoreServer,
 } from "@superglue/core";
 import { config } from "dotenv";
@@ -533,6 +534,13 @@ async function initializeApp(): Promise<void> {
       "Application running in debug mode (server unavailable)"
     );
   }
+
+  //启动mcp服务器
+  run().catch((error) => {
+    logMessage("error", `Failed to start MCP server: ${error}`);
+    console.error(`Failed to start MCP server: ${error}`);
+  });
+
 }
 
 // ==================== App Event Listeners ====================
