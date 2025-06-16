@@ -16,6 +16,10 @@
     "lint": "turbo run lint",
     "clean": "turbo run clean"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/superglue-desktop.git"
+  },
   "dependencies": {
     "@superglue/client": "^2.3.18",
     "dotenv": "^16.4.7",

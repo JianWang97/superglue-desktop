@@ -53,7 +53,7 @@
       }
     ],
     "win": {
-      "icon": "src/easyHIS.png",
+      "icon": "src/tray-icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -79,6 +79,10 @@
       "displayLanguageSelector": false,
       "warningsAsErrors": false
     }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JianWang6/superglue-desktop.git"
   },
   "author": "Superglue Team",
   "license": "MIT"
