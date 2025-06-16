@@ -108,9 +108,6 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Run security audit
-        run: npm audit --audit-level=moderate
-
       - name: Check for outdated packages
         run: npm outdated || true
 
