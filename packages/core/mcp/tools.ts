@@ -12,27 +12,45 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import { createDataStore } from "../datastore/datastore.js";
 import { logMessage } from "../utils/logs.js";
 import { WorkflowExecutor } from "../workflow/workflow-executor.js";
-import { getSchemaFromData, sample, applyJsonataWithValidation } from "../utils/tools.js";
+import {
+  getSchemaFromData,
+  sample,
+  applyJsonataWithValidation,
+} from "../utils/tools.js";
 
 const ToolInputSchema = ToolSchema.shape.inputSchema;
 type ToolInput = z.infer<typeof ToolInputSchema>;
 
 // 预设的 JSON Schema 模板
 const JSON_SCHEMA_TEMPLATES = {
-  "患者信息": {
+  患者信息: {
     type: "object",
     properties: {
       patientName: { type: "string", description: "患者姓名" },
       sex: { type: "string", description: "性别" },
       telephoneNumber: { type: "string", description: "联系电话" },
-      liveAddress:{ type: "string", description: "居住地址" },
+      liveAddress: { type: "string", description: "居住地址" },
       registeredAddress: { type: "string", description: "户籍地址" },
       identityNumber: { type: "string", description: "证件号码" },
       medicalTreatmentNumber: { type: "string", description: "病历号" },
       hisPatientId: { type: "string", description: "HIS患者ID" },
+      hisOtherDiagnoses: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            code: { type: "string", description: "诊断编码" },
+            name: { type: "string", description: "诊断名称" },
+            definiteDiagnosisDate: { type: "string", description: "确诊日期" },
+            visitNumber: { type: "string", description: "就诊号" },
+          },
+          additionalProperties: true,
+        },
+        description: "HIS诊断信息列表",
+      },
     },
     required: ["patientName", "hisPatientId"],
-  }
+  },
 } as const;
 
 type JsonSchemaTemplateName = keyof typeof JSON_SCHEMA_TEMPLATES;
@@ -54,13 +72,20 @@ const GenerateFinalTransformSchema = z.object({
   workflowId: z.string().describe("要生成最终转换的工作流ID"),
   payload: z.object({}).optional().describe("执行工作流的输入数据"),
   credentials: z.object({}).optional().describe("工作流执行的身份验证凭据"),
-  jsonSchemaTemplate: z.string().optional().describe("预设JSON Schema模板名称（如：患者信息、订单数据、用户档案等），用于生成符合特定结构的JSONata表达式"),
+  jsonSchemaTemplate: z
+    .string()
+    .describe(
+      "预设JSON Schema模板名称（如：患者信息、订单数据、用户档案等），用于生成符合特定结构的JSONata表达式"
+    ),
 });
 
 const ValidateJsonataSchema = z.object({
   workflowId: z.string().describe("工作流ID，用于获取对应的数据样本"),
   jsonataExpression: z.string().describe("要验证的JSONata表达式"),
-  targetSchema: z.object({}).optional().describe("可选的目标schema用于验证输出结构"),
+  targetSchema: z
+    .object({})
+    .optional()
+    .describe("可选的目标schema用于验证输出结构"),
 });
 
 // 工具名称枚举
@@ -94,7 +119,8 @@ export function createSimpleServer() {
 // 设置服务器处理器的函数
 function setupServerHandlers(server: Server) {
   // 注册工具列表处理器
-  server.setRequestHandler(ListToolsRequestSchema, async () => {    const tools: Tool[] = [
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    const tools: Tool[] = [
       {
         name: ToolName.GENERATE_FINAL_TRANSFORM,
         description:
@@ -111,7 +137,7 @@ function setupServerHandlers(server: Server) {
 
     return { tools };
   });
-  
+
   // 注册工具调用处理器
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
@@ -119,21 +145,21 @@ function setupServerHandlers(server: Server) {
     try {
       if (name === ToolName.GENERATE_FINAL_TRANSFORM) {
         const validatedArgs = GenerateFinalTransformSchema.parse(args);
-        const { workflowId, payload = {}, credentials = {}, jsonSchemaTemplate } = validatedArgs;// 1. 获取工作流配置
+        const {
+          workflowId,
+          payload = {},
+          credentials = {},
+          jsonSchemaTemplate,
+        } = validatedArgs; // 1. 获取工作流配置
         const datastore = getDataStore();
         const workflow = await datastore.getWorkflow(workflowId, null);
         if (!workflow) {
-          throw new Error(`Workflow with ID '${workflowId}' not found`);
+          throw new Error(`未找到ID为 '${workflowId}' 的工作流`);
         }
-
-        logMessage(
-          "info",
-          `Executing workflow for Final Transformation generation: ${workflowId}`,
-          {
-            runId: crypto.randomUUID(),
-            orgId: "default",
-          }
-        );
+        logMessage("info", `[MCP] 执行工作流以生成最终转换：${workflowId}`, {
+          runId: crypto.randomUUID(),
+          orgId: "default",
+        });
 
         // 2. 执行工作流以获取示例数据
         const metadata = { orgId: "default", runId: crypto.randomUUID() };
@@ -143,13 +169,10 @@ function setupServerHandlers(server: Server) {
           payload,
           credentials as Record<string, string>,
           { cacheMode: "DISABLED" as any },
-          datastore,
+          datastore
         );
-
         if (!executionResult.success) {
-          throw new Error(
-            `Workflow execution failed: ${executionResult.error}`
-          );
+          throw new Error(`工作流执行失败：${executionResult.error}`);
         }
 
         // 3. 准备步骤结果数据
@@ -173,13 +196,18 @@ function setupServerHandlers(server: Server) {
         const sampleData = sample(combinedData, 2);
 
         // 5. 获取预设模板信息（如果指定了）
-        const templateInfo = jsonSchemaTemplate && JSON_SCHEMA_TEMPLATES[jsonSchemaTemplate as JsonSchemaTemplateName] 
-          ? {
-              name: jsonSchemaTemplate,
-              schema: JSON_SCHEMA_TEMPLATES[jsonSchemaTemplate as JsonSchemaTemplateName],
-              description: `预设模板: ${jsonSchemaTemplate}`,
-            }
-          : null;
+        const templateInfo =
+          jsonSchemaTemplate &&
+          JSON_SCHEMA_TEMPLATES[jsonSchemaTemplate as JsonSchemaTemplateName]
+            ? {
+                name: jsonSchemaTemplate,
+                schema:
+                  JSON_SCHEMA_TEMPLATES[
+                    jsonSchemaTemplate as JsonSchemaTemplateName
+                  ],
+                description: `预设模板: ${jsonSchemaTemplate}`,
+              }
+            : null;
         // 6. 将数据样本存储到缓存以供验证使用
         const storedSampleData = {
           dataStructure,
@@ -188,13 +216,14 @@ function setupServerHandlers(server: Server) {
           workflowId,
           executionTime: new Date().toISOString(),
         };
-        
+
         // 存储到内存缓存中
         workflowSampleCache.set(workflowId, storedSampleData);
-
         logMessage(
           "info",
-          `Workflow executed successfully, providing data structure for JSONata generation${templateInfo ? ` with template: ${jsonSchemaTemplate}` : ''}`,
+          `[MCP] 工作流执行成功，为JSONata生成提供数据结构${
+            templateInfo ? ` 使用模板：${jsonSchemaTemplate}` : ""
+          }`,
           {
             runId: metadata.runId,
             orgId: metadata.orgId,
@@ -227,32 +256,31 @@ function setupServerHandlers(server: Server) {
           },
           templateInfo,
           jsonataGuide: {
-            description:
-              templateInfo 
-                ? `根据预设模板 "${templateInfo.name}" 创建JSONata表达式进行最终转换`
-                : "Use the provided data structure to create a JSONata expression for Final Transformation",
+            description: templateInfo
+              ? `根据预设模板 "${templateInfo.name}" 创建JSONata表达式进行最终转换`
+              : "使用提供的数据结构创建最终转换的JSONata表达式",
             instructions: [
-              "The available data includes original payload and all successful step results",
-              "Step results are available by their stepId (e.g., stepId.fieldName)",
-              "Original payload fields are available at root level",
-              templateInfo 
+              "可用数据包括原始payload和所有成功步骤的结果",
+              "步骤结果可通过其stepId访问（例如：stepId.fieldName）",
+              "原始payload字段在根级别可用",
+              templateInfo
                 ? `目标结构应符合 "${templateInfo.name}" 模板的要求`
-                : '',
-              'Use JSONata syntax like: { "result": stepId.data, "summary": payload.info }',
-              'For arrays, use expressions like: stepId.items[*].{ "name": name, "value": value }',
-              'You can combine multiple step results: { "step1Data": step1.result, "step2Data": step2.result }',
-              'After generating JSONata, use the validate_jsonata tool to test it against the sample data',
+                : "",
+              '使用JSONata语法如：{ "result": stepId.data, "summary": payload.info }',
+              '对于数组，使用如下表达式：stepId.items[*].{ "name": name, "value": value }',
+              '可以组合多个步骤结果：{ "step1Data": step1.result, "step2Data": step2.result }',
+              "生成JSONata后，使用validate_jsonata工具对示例数据进行测试",
             ].filter(Boolean),
-            examples: templateInfo 
+            examples: templateInfo
               ? [
                   `根据 "${templateInfo.name}" 模板的字段结构生成对应的JSONata表达式`,
-                  'Example: { "patientId": step1.id, "name": step1.patient.name, "age": step1.patient.age }',
+                  '示例：{ "patientId": step1.id, "name": step1.patient.name, "age": step1.patient.age }',
                 ]
               : [
-                  'Simple field mapping: { "name": step1.user.name, "email": step1.user.email }',
-                  'Array transformation: stepData.results[*].{ "id": id, "status": status }',
-                  'Conditional logic: status = "active" ? step1.data : step2.fallback',
-                  'Aggregation: { "total": $sum(stepData.items[*].amount) }',
+                  '简单字段映射：{ "name": step1.user.name, "email": step1.user.email }',
+                  '数组转换：stepData.results[*].{ "id": id, "status": status }',
+                  '条件逻辑：status = "active" ? step1.data : step2.fallback',
+                  '聚合操作：{ "total": $sum(stepData.items[*].amount) }',
                 ],
           },
           generatedAt: new Date().toISOString(),
@@ -269,22 +297,17 @@ function setupServerHandlers(server: Server) {
       }
       if (name === ToolName.VALIDATE_JSONATA) {
         const validatedArgs = ValidateJsonataSchema.parse(args);
-        const { workflowId, jsonataExpression, targetSchema } = validatedArgs;
-
-        // 从缓存中获取工作流数据样本
+        const { workflowId, jsonataExpression, targetSchema } = validatedArgs; // 从缓存中获取工作流数据样本
         const cachedData = workflowSampleCache.get(workflowId);
         if (!cachedData) {
-          throw new Error(`No sample data found for workflow '${workflowId}'. Please run generate_final_transform first.`);
+          throw new Error(
+            `未找到工作流 '${workflowId}' 的示例数据。请先运行 generate_final_transform。`
+          );
         }
-
-        logMessage(
-          "info",
-          `Validating JSONata expression for workflow: ${workflowId}`,
-          {
-            runId: crypto.randomUUID(),
-            orgId: "default",
-          }
-        );
+        logMessage("info", `[MCP] 验证工作流的JSONata表达式：${workflowId}`, {
+          runId: crypto.randomUUID(),
+          orgId: "default",
+        });
 
         // 使用缓存的样本数据验证 JSONata 表达式
         const validationResult = await applyJsonataWithValidation(
@@ -299,33 +322,38 @@ function setupServerHandlers(server: Server) {
           jsonataExpression,
           validation: {
             isValid: validationResult.success,
-            result: validationResult.success ? validationResult.data : undefined,
+            result: validationResult.success
+              ? validationResult.data
+              : undefined,
             error: validationResult.error || undefined,
             sampleDataUsed: cachedData.sampleData,
             targetSchema: targetSchema || cachedData.templateInfo?.schema,
             templateUsed: cachedData.templateInfo?.name,
           },
-          recommendations: validationResult.success 
+          recommendations: validationResult.success
             ? [
-                "JSONata expression is valid and produces the expected output",
-                "The expression successfully transforms the sample data",
-                cachedData.templateInfo 
-                  ? `Output structure matches the "${cachedData.templateInfo.name}" template requirements`
-                  : "Output structure validation passed",
+                "JSONata表达式有效并生成预期输出",
+                "表达式成功转换了示例数据",
+                cachedData.templateInfo
+                  ? `输出结构符合 "${cachedData.templateInfo.name}" 模板要求`
+                  : "输出结构验证通过",
               ]
             : [
-                "JSONata expression validation failed",
-                "Please check the expression syntax and field references",
-                "Ensure all referenced fields exist in the workflow data",
-                "Verify the output structure matches the expected schema",
-                validationResult.error ? `Error details: ${validationResult.error}` : "",
+                "JSONata表达式验证失败",
+                "请检查表达式语法和字段引用",
+                "确保所有引用的字段在工作流数据中存在",
+                "验证输出结构是否符合预期schema",
+                validationResult.error
+                  ? `错误详情：${validationResult.error}`
+                  : "",
               ].filter(Boolean),
           generatedAt: new Date().toISOString(),
         };
-
         logMessage(
           validationResult.success ? "info" : "warn",
-          `JSONata validation ${validationResult.success ? 'passed' : 'failed'} for workflow: ${workflowId}`,
+          `[MCP] 工作流 ${workflowId} 的JSONata验证${
+            validationResult.success ? "通过" : "失败"
+          }`,
           {
             runId: crypto.randomUUID(),
             orgId: "default",
@@ -342,9 +370,9 @@ function setupServerHandlers(server: Server) {
         };
       }
 
-      throw new Error(`Unknown tool: ${name}`);
+      throw new Error(`未知工具：${name}`);
     } catch (error: any) {
-      logMessage("error", `MCP tool execution failed: ${error.message}`, {
+      logMessage("error", `[MCP] 工具执行失败：${error.message}`, {
         runId: crypto.randomUUID(),
         orgId: "default",
       });
