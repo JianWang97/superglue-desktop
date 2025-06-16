@@ -14,6 +14,7 @@ import { resolvers, typeDefs } from './graphql/graphql.js';
 import { createTelemetryPlugin, telemetryMiddleware } from './utils/telemetry.js';
 import { logMessage } from "./utils/logs.js";
 import { authMiddleware, validateToken, extractToken } from './auth/auth.js';
+import { run } from './mcp/index.js';
 
 // Server instances for restart functionality
 let currentServer: {
@@ -303,6 +304,12 @@ if (!process.versions.electron) {
     logMessage('error', `Failed to start server: ${error}`);
     process.exit(1);
   });
+
+  run().catch((error) => {
+    logMessage('error', `Failed to run MCP: ${error}`);
+    process.exit(1);
+  });
 }
 
 export * from './utils/logs.js';
+export {run} from './mcp/index.js';

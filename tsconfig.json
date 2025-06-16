@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "jsx": "react",
     "rootDirs": ["src"],
     "outDir": "dist",
     "lib": ["es2020", "dom"],
