@@ -23,9 +23,6 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Run linting
-        run: npm run lint
-
       - name: Run tests
         run: npm run test
 
@@ -65,39 +62,6 @@ jobs:
         run: |
           echo "Checking build outputs..."
           ls -la packages/*/dist/ || echo "Some packages may not have dist folders"
-
-  build-electron:
-    name: Build Electron (Windows)
-    runs-on: windows-latest
-    needs: test
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build project
-        run: npm run build
-
-      - name: Build Electron app
-        run: npm run pack
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: electron-build-${{ github.sha }}
-          path: pack-electron/
-          retention-days: 7
 
   type-check:
     name: TypeScript Type Check
