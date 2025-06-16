@@ -1,0 +1,101 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # 当推送 v* 标签时触发
+  workflow_dispatch:  # 手动触发
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Build Electron installer
+        run: npm run pack
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get version
+        id: version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq "workflow_dispatch") {
+            $version = "${{ github.event.inputs.version }}"
+          } else {
+            $version = $env:GITHUB_REF -replace "refs/tags/", ""
+          }
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "Version: $version"
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          release_name: Release ${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: false
+
+      - name: Find installer file
+        id: installer
+        shell: pwsh
+        run: |
+          $installerPath = Get-ChildItem -Path "pack-electron" -Filter "*Setup*.exe" -Recurse | Select-Object -First 1
+          if ($installerPath) {
+            echo "installer_path=$($installerPath.FullName)" >> $env:GITHUB_OUTPUT
+            echo "installer_name=$($installerPath.Name)" >> $env:GITHUB_OUTPUT
+            echo "Found installer: $($installerPath.FullName)"
+          } else {
+            echo "No installer found!"
+            exit 1
+          }
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ steps.installer.outputs.installer_path }}
+          asset_name: ${{ steps.installer.outputs.installer_name }}
+          asset_content_type: application/octet-stream
+
+      - name: Generate Release Notes
+        shell: pwsh
+        run: |
+          echo "🎉 Superglue Desktop ${{ steps.version.outputs.version }} 发布成功！"
+          echo ""
+          echo "## 📦 下载"
+          echo "- Windows 安装程序: ${{ steps.installer.outputs.installer_name }}"
+          echo ""
+          echo "## 🔧 安装说明"
+          echo "1. 下载 Windows 安装程序"
+          echo "2. 运行安装程序并按照提示安装"
+          echo "3. 安装完成后可在开始菜单或桌面找到 Superglue 快捷方式"
+          echo ""
+          echo "## ⚠️ 系统要求"
+          echo "- Windows 10 或更高版本"
+          echo "- x64 架构"
