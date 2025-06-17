@@ -58,21 +58,31 @@ jobs:
           name: Release ${{ steps.version.outputs.version }}
           draft: false
           prerelease: false
-          generate_release_notes: true
-
+          generate_release_notes: true      
       - name: Find installer file
         id: installer
         shell: pwsh
         run: |
-          $installerPath = Get-ChildItem -Path "pack-electron" -Filter "*Setup*.exe" -Recurse | Select-Object -First 1
+          # 列出 pack-electron 目录内容以便调试
+          echo "=== pack-electron 目录内容 ==="
+          Get-ChildItem -Path "pack-electron" -Recurse | ForEach-Object { echo $_.FullName }
+          echo "========================"
+          
+          # 查找安装包文件，支持多种命名模式
+          $installerPath = Get-ChildItem -Path "pack-electron" -Filter "*.exe" -Recurse | Where-Object { 
+            $_.Name -match "(Setup|setup)" -or $_.Name -match "Superglue.*\.exe" 
+          } | Select-Object -First 1
+          
           if ($installerPath) {
             echo "installer_path=$($installerPath.FullName)" >> $env:GITHUB_OUTPUT
             echo "installer_name=$($installerPath.Name)" >> $env:GITHUB_OUTPUT
             echo "Found installer: $($installerPath.FullName)"
           } else {
             echo "No installer found!"
+            echo "Available files:"
+            Get-ChildItem -Path "pack-electron" -Recurse | ForEach-Object { echo "  $($_.FullName)" }
             exit 1
-          }      
+          }
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v1
         env:
