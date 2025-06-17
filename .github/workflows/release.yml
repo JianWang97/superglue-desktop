@@ -45,18 +45,17 @@ jobs:
             $version = $env:GITHUB_REF -replace "refs/tags/", ""
           }
           echo "version=$version" >> $env:GITHUB_OUTPUT
-          echo "Version: $version"
-
-      - name: Create Release
+          echo "Version: $version"      - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
+        uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.version.outputs.version }}
-          release_name: Release ${{ steps.version.outputs.version }}
+          name: Release ${{ steps.version.outputs.version }}
           draft: false
           prerelease: false
+          generate_release_notes: true
 
       - name: Find installer file
         id: installer
@@ -70,17 +69,13 @@ jobs:
           } else {
             echo "No installer found!"
             exit 1
-          }
-
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
+          }      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ steps.installer.outputs.installer_path }}
-          asset_name: ${{ steps.installer.outputs.installer_name }}
-          asset_content_type: application/octet-stream
+          tag_name: ${{ steps.version.outputs.version }}
+          files: ${{ steps.installer.outputs.installer_path }}
 
       - name: Generate Release Notes
         shell: pwsh
