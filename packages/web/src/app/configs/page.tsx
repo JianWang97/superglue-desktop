@@ -299,41 +299,6 @@ const ConfigTable = () => {
         />
       </div>
     );
-  } else if (configs.length === 0) {
-    return (
-      <div className="p-8 max-w-none w-full min-h-full">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Configurations</h1>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={refreshConfigs}
-                  className="transition-transform"
-                >
-                  <RotateCw
-                    className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
-                  />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Refresh Configurations</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-
-        <EmptyStateActions
-          handleCreateNew={handleCreateNew}
-          handleCreateNewExtract={handleCreateNewExtract}
-          handleWorkflow={handleWorkflow}
-          handleCreateExampleShopify={handleCreateExampleShopify}
-          handleWorkflowManual={handleWorkflowManual}
-        />
-      </div>
-    );
   }
 
   return (
@@ -349,14 +314,6 @@ const ConfigTable = () => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleCreateNew} className="p-4">
-                <Globe className="mr-2 h-4 w-4" />
-                API Configuration
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleCreateNewManual} className="p-4">
-                <Globe className="mr-2 h-4 w-4" />
-                API Configuration (Manual)
-              </DropdownMenuItem>
               <DropdownMenuItem onClick={handleWorkflow} className="p-4">
                 <GitBranch className="mr-2 h-4 w-4" />
                 Workflow
