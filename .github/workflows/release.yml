@@ -45,7 +45,8 @@ jobs:
             $version = $env:GITHUB_REF -replace "refs/tags/", ""
           }
           echo "version=$version" >> $env:GITHUB_OUTPUT
-          echo "Version: $version"      - name: Create Release
+          echo "Version: $version"      
+      - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@v1
         env:
@@ -69,7 +70,8 @@ jobs:
           } else {
             echo "No installer found!"
             exit 1
-          }      - name: Upload Release Asset
+          }      
+        - name: Upload Release Asset
         uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
