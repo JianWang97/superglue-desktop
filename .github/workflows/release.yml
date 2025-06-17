@@ -25,17 +25,29 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'      
+          cache: 'npm'        
       - name: Install dependencies
         run: npm install
 
-      - name: Build project
-        run: npm run build
-
+      - name: Build web application
+        run: npm run build      
       - name: Build Electron installer
-        run: npm run pack
+        run: |
+          echo "开始构建 Electron 安装包..."
+          echo "当前工作目录: $(Get-Location)"
+          echo "环境变量 NODE_ENV: $env:NODE_ENV"
+          npm run pack
+          echo "构建完成，检查输出目录..."
+          if (Test-Path "pack-electron") {
+            echo "✅ pack-electron 目录存在"
+            Get-ChildItem -Path "pack-electron" | ForEach-Object { echo "  - $($_.Name)" }
+          } else {
+            echo "❌ pack-electron 目录不存在"
+          }
+        shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_ENV: production
 
       - name: Get version
         id: version
@@ -58,31 +70,87 @@ jobs:
           name: Release ${{ steps.version.outputs.version }}
           draft: false
           prerelease: false
-          generate_release_notes: true      
+          generate_release_notes: true        
       - name: Find installer file
         id: installer
         shell: pwsh
         run: |
-          # 列出 pack-electron 目录内容以便调试
-          echo "=== pack-electron 目录内容 ==="
-          Get-ChildItem -Path "pack-electron" -Recurse | ForEach-Object { echo $_.FullName }
+          # 列出整个工作区结构以便调试
+          echo "=== 工作区根目录内容 ==="
+          Get-ChildItem -Path "." | ForEach-Object { echo $_.Name }
           echo "========================"
           
-          # 查找安装包文件，支持多种命名模式
-          $installerPath = Get-ChildItem -Path "pack-electron" -Filter "*.exe" -Recurse | Where-Object { 
-            $_.Name -match "(Setup|setup)" -or $_.Name -match "Superglue.*\.exe" 
-          } | Select-Object -First 1
+          # 检查 pack-electron 目录是否存在
+          if (Test-Path "pack-electron") {
+            echo "=== pack-electron 目录内容 ==="
+            Get-ChildItem -Path "pack-electron" -Recurse | ForEach-Object { echo $_.FullName }
+            echo "========================"
+          } else {
+            echo "❌ pack-electron 目录不存在！"
+            
+            # 查找可能的输出目录
+            echo "=== 查找所有 .exe 文件 ==="
+            Get-ChildItem -Path "." -Filter "*.exe" -Recurse | ForEach-Object { echo $_.FullName }
+            echo "========================"
+            
+            # 检查 packages/electron 目录
+            if (Test-Path "packages/electron") {
+              echo "=== packages/electron 目录内容 ==="
+              Get-ChildItem -Path "packages/electron" -Recurse | Where-Object { $_.Extension -eq ".exe" -or $_.Name -eq "dist" } | ForEach-Object { echo $_.FullName }
+              echo "========================"
+            }
+          }
           
-          if ($installerPath) {
-            echo "installer_path=$($installerPath.FullName)" >> $env:GITHUB_OUTPUT
+          # 查找安装包文件，在多个可能的位置查找
+          $searchPaths = @("pack-electron", "packages/electron/dist", "packages/electron", ".")
+          $installerPath = $null
+            foreach ($path in $searchPaths) {
+            if (Test-Path $path) {
+              $installerPath = Get-ChildItem -Path $path -Filter "*.exe" -Recurse | Where-Object { 
+                -not $_.PSIsContainer -and (
+                  $_.Name -match "(Setup|setup)" -or $_.Name -match "Superglue.*\.exe"
+                )
+              } | Select-Object -First 1
+              
+              if ($installerPath) {
+                echo "✅ 在 $path 中找到安装包: $($installerPath.FullName)"
+                break
+              }
+            }
+          }
+            if ($installerPath) {
+            # 获取相对于工作目录的路径
+            $relativePath = Resolve-Path -Path $installerPath.FullName -Relative
+            echo "installer_path=$relativePath" >> $env:GITHUB_OUTPUT
             echo "installer_name=$($installerPath.Name)" >> $env:GITHUB_OUTPUT
             echo "Found installer: $($installerPath.FullName)"
+            echo "Relative path: $relativePath"
           } else {
-            echo "No installer found!"
+            echo "❌ 未找到安装包文件！"
             echo "Available files:"
-            Get-ChildItem -Path "pack-electron" -Recurse | ForEach-Object { echo "  $($_.FullName)" }
+            Get-ChildItem -Path "." -Recurse | Where-Object { $_.Extension -eq ".exe" } | ForEach-Object { echo "  $($_.FullName)" }
             exit 1
           }
+      - name: Verify installer file
+        shell: pwsh
+        run: |
+          $installerPath = "${{ steps.installer.outputs.installer_path }}"
+          echo "验证安装包文件: $installerPath"
+          
+          if (Test-Path $installerPath) {
+            $item = Get-Item $installerPath
+            if ($item.PSIsContainer) {
+              echo "❌ 错误: $installerPath 是一个目录，不是文件！"
+              exit 1
+            } else {
+              echo "✅ 文件验证成功: $($item.Name)"
+              echo "文件大小: $([math]::Round($item.Length/1MB, 2)) MB"
+            }
+          } else {
+            echo "❌ 错误: 文件不存在: $installerPath"
+            exit 1
+          }
+
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v1
         env:
