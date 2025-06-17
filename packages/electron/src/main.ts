@@ -409,6 +409,10 @@ function createTrayMenu(): Electron.Menu {
       click: openEnvironmentFile,
     },
     {
+      label: "打开日志文件夹",
+      click: openLogFolder,
+    },
+    {
       label: "重启服务器",
       click: handleServerRestart,
     },
@@ -431,6 +435,25 @@ function openEnvironmentFile(): void {
     .openPath(envPath)
     .catch((error) => {
       logMessage("error", `打开 .env 文件失败: ${error}`);
+    });
+}
+
+/**
+ * 打开日志文件夹
+ */
+function openLogFolder(): void {
+  const logDir = path.join(getAppPath(), "logs");
+
+  // 确保日志目录存在
+  if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true });
+  }
+
+  // 在系统文件管理器中打开日志文件夹
+  shell
+    .openPath(logDir)
+    .catch((error) => {
+      logMessage("error", `打开日志文件夹失败: ${error}`);
     });
 }
 

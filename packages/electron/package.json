@@ -64,7 +64,7 @@
       ],
       "requestedExecutionLevel": "asInvoker",
       "artifactName": "${productName}-${os}-${arch}-v${version}.${ext}"
-    },
+    },    
     "nsis": {
       "oneClick": false,
       "allowElevation": true,
@@ -78,7 +78,8 @@
       "artifactName": "${productName}-Setup-v${version}-${arch}.${ext}",
       "displayLanguageSelector": false,
       "warningsAsErrors": false
-    }
+    },
+    "publish": null
   },
   "repository": {
     "type": "git",
