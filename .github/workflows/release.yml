@@ -71,7 +71,7 @@ jobs:
             echo "No installer found!"
             exit 1
           }      
-        - name: Upload Release Asset
+      - name: Upload Release Asset
         uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
