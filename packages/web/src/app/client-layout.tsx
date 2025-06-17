@@ -37,7 +37,7 @@ export function ClientWrapper({ children, config }: Props) {
                   {children}
                 </motion.div>
               </AnimatePresence>
-              <LogSidebar />
+              {/* <LogSidebar /> */}
             </div>
           )}
           <Toaster />
