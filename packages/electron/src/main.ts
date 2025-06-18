@@ -276,11 +276,6 @@ async function createWindow(): Promise<void> {
     // 启动静态文件服务器
     const serverUrl = await startStaticServer();
 
-    // 在开发模式下打开开发者工具
-    if (isDevelopment) {
-      mainWindow.webContents.openDevTools();
-    }
-
     logMessage("info", `Loading application from: ${serverUrl}`);
     await mainWindow.loadURL(serverUrl);
 
@@ -405,6 +400,11 @@ function createTrayMenu(): Electron.Menu {
     },
     { type: "separator" },
     {
+      label: "打开开发者模式",
+      click: openDevTools,
+    },
+    { type: "separator" },
+    {
       label: "编辑环境配置 (.env)",
       click: openEnvironmentFile,
     },
@@ -422,6 +422,26 @@ function createTrayMenu(): Electron.Menu {
       click: () => app.quit(),
     },
   ]);
+}
+
+/**
+ * 打开开发者工具
+ */
+function openDevTools(): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.webContents.isDevToolsOpened()) {
+      mainWindow.webContents.closeDevTools();
+      logMessage("info", "开发者工具已关闭");
+    } else {
+      mainWindow.webContents.openDevTools();
+      logMessage("info", "开发者工具已打开");
+    }
+    
+    // 确保窗口可见
+    if (!mainWindow.isVisible()) {
+      showWindow();
+    }
+  }
 }
 
 /**
