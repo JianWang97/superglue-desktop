@@ -103,6 +103,19 @@ export function superglueJsonata(expr: string) {
       default: return diff; // milliseconds
     }
   });
+  expression.registerFunction("addDays", (baseDate: string | number, days?: number) => {
+    // 如果第一个参数是数字，表示只传了天数，baseDate 使用当前日期
+    if (typeof baseDate === 'number') {
+      days = baseDate;
+      baseDate = new Date().toISOString().slice(0, 10);
+    }
+    
+    const date = new Date(baseDate);
+    date.setDate(date.getDate() + (days || 0));
+    return date.toISOString().slice(0, 10);
+  });
+
+
   return expression;
 }
 

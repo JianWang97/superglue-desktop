@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Button } from "../ui/button";
 import {
   Card,
@@ -547,6 +547,41 @@ function StepCard({
   );
 }
 
+const clearPayloadFromLocalStorage = (workflowId: string) => {
+  try {
+    if (typeof window !== 'undefined' && workflowId.trim()) {
+      const key = `workflow_payload_${workflowId}`;
+      localStorage.removeItem(key);
+    }
+  } catch (error) {
+    console.warn('Failed to clear payload from localStorage:', error);
+  }
+};
+
+// localStorage 工具函数
+const savePayloadToLocalStorage = (workflowId: string, payload: string) => {
+  try {
+    if (typeof window !== 'undefined' && workflowId.trim()) {
+      const key = `workflow_payload_${workflowId}`;
+      localStorage.setItem(key, payload);
+    }
+  } catch (error) {
+    console.warn('Failed to save payload to localStorage:', error);
+  }
+};
+
+const loadPayloadFromLocalStorage = (workflowId: string): string => {
+  try {
+    if (typeof window !== 'undefined' && workflowId.trim()) {
+      const key = `workflow_payload_${workflowId}`;
+      return localStorage.getItem(key) || "{}";
+    }
+  } catch (error) {
+    console.warn('Failed to load payload from localStorage:', error);
+  }
+  return "{}";
+};
+
 export default function WorkflowPlayground({ id }: { id?: string }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -565,9 +600,20 @@ export default function WorkflowPlayground({ id }: { id?: string }) {
   const [activeResultTab, setActiveResultTab] = useState("finalData");
   const [hiddenSteps, setHiddenSteps] = useState<Set<number>>(new Set());
   const [isFinalTransformDialogOpen, setIsFinalTransformDialogOpen] =
+    useState(false);  const [isResponseSchemaDialogOpen, setIsResponseSchemaDialogOpen] =
     useState(false);
-  const [isResponseSchemaDialogOpen, setIsResponseSchemaDialogOpen] =
-    useState(false);
+  // 用于防抖保存 payload 的 ref
+  const payloadSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 防抖保存 payload 函数
+  const debouncedSavePayload = useCallback((workflowId: string, payload: string) => {
+    if (payloadSaveTimeoutRef.current) {
+      clearTimeout(payloadSaveTimeoutRef.current);
+    }
+    payloadSaveTimeoutRef.current = setTimeout(() => {
+      savePayloadToLocalStorage(workflowId, payload);
+    }, 1000); // 1秒后保存
+  }, []);
 
   const updateWorkflowId = (id: string) => {
     const sanitizedId = id
@@ -609,10 +655,13 @@ export default function WorkflowPlayground({ id }: { id?: string }) {
         setResponseSchema(JSON.stringify(cleanedResponseSchema, null, 2));
       } else {
         setResponseSchema("{}");
-      }
-
-      setHiddenSteps(new Set()); // 重置隐藏状态
+      }      setHiddenSteps(new Set()); // 重置隐藏状态
       updateWorkflowId(cleanedWorkflow.id || ""); // Use cleaned ID, default to empty string
+      
+      // 加载对应的 payload
+      const savedPayload = loadPayloadFromLocalStorage(cleanedWorkflow.id || "");
+      setPayload(savedPayload);
+      
       toast({
         title: "Workflow loaded",
         description: `Loaded "${cleanedWorkflow.id}" successfully`,
@@ -633,12 +682,20 @@ export default function WorkflowPlayground({ id }: { id?: string }) {
       setLoading(false);
     }
   };
-
   useEffect(() => {
     if (id) {
       loadWorkflow(id);
     }
   }, [id]);
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (payloadSaveTimeoutRef.current) {
+        clearTimeout(payloadSaveTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const fillDogExample = () => {
     updateWorkflowId("Dog Breed Workflow");
@@ -719,12 +776,13 @@ export default function WorkflowPlayground({ id }: { id?: string }) {
       const savedWorkflow = await superglueClient.upsertWorkflow(
         workflowId,
         input
-      );
-
-      if (!savedWorkflow) {
+      );      if (!savedWorkflow) {
         throw new Error("Failed to save workflow");
       }
       updateWorkflowId(savedWorkflow.id);
+
+      // 保存对应的 payload 到 localStorage
+      savePayloadToLocalStorage(savedWorkflow.id, payload);
 
       toast({
         title: "Workflow saved",
@@ -858,20 +916,41 @@ export default function WorkflowPlayground({ id }: { id?: string }) {
                 onChange={(e) => setCredentials(e.target.value)}
                 placeholder="Enter API key, token, or JSON object"
               />
-            </div>
-            {/* Add Payload Input */}
+            </div>            {/* Add Payload Input */}
             <div className="mb-3">
               <div className="flex items-center gap-2 mb-1">
                 <Label htmlFor="payload">Payload (Optional)</Label>
-                <HelpTooltip text="Enter JSON payload to be used as input data for the workflow" />
+                <HelpTooltip text="Enter JSON payload to be used as input data for the workflow. 数据会自动保存到本地缓存。" />
               </div>
-              <Input
-                id="payload"
-                value={payload}
-                onChange={(e) => setPayload(e.target.value)}
-                placeholder="Enter JSON payload"
-                className="font-mono text-xs"
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="payload"
+                  value={payload}
+                  onChange={(e) => {
+                    setPayload(e.target.value);
+                    // 自动保存到 localStorage（防抖）
+                    if (workflowId.trim()) {
+                      debouncedSavePayload(workflowId, e.target.value);
+                    }
+                  }}
+                  placeholder="Enter JSON payload"
+                  className="font-mono text-xs flex-1"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setPayload("{}");
+                    if (workflowId.trim()) {
+                      clearPayloadFromLocalStorage(workflowId);
+                    }
+                  }}
+                  className="flex-shrink-0"
+                  title="清除 Payload 和本地缓存"
+                >
+                  Clear
+                </Button>
+              </div>
             </div>{" "}
             {/* Steps and Final Transform */}
             <div className="space-y-3 flex flex-col flex-grow">

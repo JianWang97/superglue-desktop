@@ -70,7 +70,7 @@ function getDataStore() {
 
 const GenerateFinalTransformSchema = z.object({
   workflowId: z.string().describe("要生成最终转换的工作流ID"),
-  payload: z.object({}).optional().describe("执行工作流的输入数据"),
+  payload: z.string().describe("执行工作流的输入数据，JSON字符串格式，例如：'{\"A\":[\"10\",\"20\"]}'"),
   credentials: z.object({}).optional().describe("工作流执行的身份验证凭据"),
   jsonSchemaTemplate: z
     .string()
@@ -143,14 +143,21 @@ function setupServerHandlers(server: Server) {
     const { name, arguments: args } = request.params;
 
     try {
-      if (name === ToolName.GENERATE_FINAL_TRANSFORM) {
-        const validatedArgs = GenerateFinalTransformSchema.parse(args);
+      if (name === ToolName.GENERATE_FINAL_TRANSFORM) {        const validatedArgs = GenerateFinalTransformSchema.parse(args);
         const {
           workflowId,
-          payload = {},
+          payload: payloadString,
           credentials = {},
           jsonSchemaTemplate,
-        } = validatedArgs; // 1. 获取工作流配置
+        } = validatedArgs;
+
+        // 解析 JSON 字符串格式的 payload
+        let payload: Record<string, any>;
+        try {
+          payload = JSON.parse(payloadString);
+        } catch (error) {
+          throw new Error(`无效的 payload JSON 格式: ${error instanceof Error ? error.message : String(error)}`);
+        }// 1. 获取工作流配置
         const datastore = getDataStore();
         const workflow = await datastore.getWorkflow(workflowId, null);
         if (!workflow) {
