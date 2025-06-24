@@ -163,124 +163,145 @@ async function parseJSON(buffer: Buffer): Promise<any> {
     }
 }
   
-export async function parseXML(buffer: Buffer, loop:boolean = true ): Promise<any> {
+export async function parseXML(buffer: Buffer): Promise<any> {
     const results: any = {};
     let currentElement: any = null;
     const elementStack: any[] = [];
-    
+    // 新增：收集需要递归解析的内容
+    const deferredRecursions: Array<{ target: any, key: string, content: string, type: 'xml' | 'json' }> = [];
+
     return new Promise((resolve, reject) => {
-    const parser = sax.createStream(true); // true for strict mode
+        const parser = sax.createStream(true);
 
-    parser.on('opentag', (node) => {
-        // Create a new object for the current element
-        const newElement: any = node.attributes || {};
-        // If there's a current element, add this new one as its child
-        if (currentElement) {
-            elementStack.push(currentElement); // Push current to stack
-        }
-        
-        // Update current element
-        currentElement = newElement;
-    });
-
-    parser.on('text', async (text) => {
-        if (!currentElement || text?.trim()?.length == 0) {
-            return;
-        }
-        const trimmed = text.trim();
-        if (trimmed.startsWith('<')) {
-            // If text looks like XML, try to parse as XML
-            try {
-                const parsedXml = loop ? await parseXML(Buffer.from(trimmed), false) : JSON.parse(trimmed);
-                if (Object.keys(currentElement)?.length > 0) {
-                    currentElement["__cdata"] = parsedXml;
-                } else {
-                    currentElement = parsedXml;
-                }
-            } catch (xmlError) {
-                if (Object.keys(currentElement)?.length > 0) {
-                    currentElement["__cdata"] = trimmed;
-                } else {
-                    currentElement = trimmed;
-                }
+        parser.on('opentag', (node) => {
+            const newElement: any = node.attributes || {};
+            if (currentElement) {
+                elementStack.push(currentElement);
             }
-        } else {
+            currentElement = newElement;
+        });
+
+        parser.on('text', (text) => {
+          if (!currentElement || text == null) return;
+          const trimmed = text.trim();
+          if (trimmed.length === 0) return;
+          if (trimmed.startsWith('<')) {
             if (Object.keys(currentElement)?.length > 0) {
-                currentElement["__cdata"] = trimmed;
+              deferredRecursions.push({ target: currentElement, key: "__cdata", content: trimmed, type: "xml" });
             } else {
-                currentElement = trimmed;
+              deferredRecursions.push({ target: currentElement, key: "__self", content: trimmed, type: "xml" });
             }
-        }
-    });
-    
-    parser.on('cdata', async (cdata) => {
-        if (!currentElement || !cdata?.trim()) {
-            return;
-        }
-        
-        try {
-            // First try to parse as XML
-            const parsedXml = loop ? await parseXML(Buffer.from(cdata.trim()), false) : JSON.parse(cdata.trim());
-            if(Object.keys(currentElement)?.length > 0) {
-                currentElement["__cdata"] = parsedXml;
+          } else {
+            // 累积文本内容
+            if (typeof currentElement.__text === 'string') {
+              currentElement.__text += trimmed;
             } else {
-                currentElement = parsedXml;
+              currentElement.__text = trimmed;
             }
-        } catch (xmlError) {
-            try {
-                // If XML parsing fails, try JSON parsing
-                const parsedJson = JSON.parse(cdata.trim());
-                if(Object.keys(currentElement)?.length > 0) {
-                    currentElement["__cdata"] = parsedJson;
-                } else {
-                    currentElement = parsedJson;
-                }
-            } catch (jsonError) {
-                // If both XML and JSON parsing fail, handle as plain text
-                if(Object.keys(currentElement)?.length > 0) {
-                    currentElement["__cdata"] = cdata.trim();
-                } else {
-                    currentElement = cdata.trim();
-                }
-            }
-        }
-    });
+          }
+        });
 
-    parser.on('closetag', (tagName) => {
-        let parentElement = elementStack.pop();
-        if(parentElement == null) {
+        function detectContentType(content: string): 'xml' | 'json' | 'text' {
+          const trimmed = content.trim();
+          if (trimmed.startsWith('<') && trimmed.endsWith('>')) return 'xml';
+          if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) return 'json';
+          return 'text';
+        }
+
+        parser.on('cdata', (cdata) => {
+          if (!currentElement || !cdata?.trim()) return;
+          const trimmed = cdata.trim();
+          const type = detectContentType(trimmed);
+          if (Object.keys(currentElement)?.length > 0) {
+            if (type === 'text') {
+              currentElement.__cdata = trimmed;
+            } else {
+              deferredRecursions.push({ target: currentElement, key: "__cdata", content: trimmed, type });
+            }
+          } else {
+            if (type === 'text') {
+              // 直接存储为特殊标记，后续 closetag 处理
+              currentElement.__text = trimmed;
+            } else {
+              deferredRecursions.push({ target: currentElement, key: "__self", content: trimmed, type });
+            }
+          }
+        });
+
+        parser.on('closetag', (tagName) => {
+          let parentElement = elementStack.pop();
+          if (parentElement == null) {
             parentElement = results;
-        }
-        if (currentElement) {
-            if(!parentElement[tagName]) {
+          }
+          if (currentElement !== undefined && currentElement !== null) {
+            // 只包含 __text 字段时，直接赋值为字符串
+            const keys = Object.keys(currentElement);
+            if (keys.length === 1 && keys[0] === '__text') {
+              const textValue = currentElement.__text;
+              if (!parentElement[tagName]) {
+                parentElement[tagName] = textValue;
+              } else if (Array.isArray(parentElement[tagName])) {
+                parentElement[tagName].push(textValue);
+              } else {
+                parentElement[tagName] = [parentElement[tagName], textValue];
+              }
+            } else {
+              if (!parentElement[tagName]) {
                 parentElement[tagName] = currentElement;
-            }
-            else if(Array.isArray(parentElement[tagName])) {
+              } else if (Array.isArray(parentElement[tagName])) {
                 parentElement[tagName].push(currentElement);
-            }
-            else {
-                // Convert single value to array when second value is encountered
+              } else {
                 parentElement[tagName] = [parentElement[tagName], currentElement];
+              }
             }
-        }  
-        currentElement = parentElement;
-    });
+          }
+          currentElement = parentElement;
+        });
 
-    parser.on('error', (error) => {
-        console.error('Failed converting XML to JSON:', error);
-        reject(error);
-    });
-
-    parser.on('end', async () => {
-        try {
-            resolve(results);
-        } catch (error) {
+        parser.on('error', (error) => {
+            console.error('Failed converting XML to JSON:', error);
             reject(error);
-        }
-    });
+        });
 
-    const readStream = Readable.from(buffer);
-    readStream.pipe(parser); // Pipe the file stream to the SAX parser
+        parser.on('end', async () => {
+            try {
+                // 递归处理 deferredRecursions
+                for (const item of deferredRecursions) {
+                    try {
+                        if (item.type === "xml") {
+                            const parsed = await parseXML(Buffer.from(item.content));
+                        if (item.key === "__self") {
+                            Object.assign(item.target, parsed);
+                        } else {
+                            item.target[item.key] = parsed;
+                        }
+                        } else if (item.type === "json") {
+                            const parsed = JSON.parse(item.content);
+                            if (item.key === "__self") {
+                                Object.assign(item.target, parsed);
+                            } else {
+                                item.target[item.key] = parsed;
+                            }
+                        }
+                    } catch (err) {
+                        // fallback: 原样赋值
+                        if (item.key === "__self") {
+
+                                Object.assign(item.target, item.content);
+                            
+                        } else {
+                            item.target[item.key] = item.content;
+                        }
+                    }
+                }
+            resolve(results);
+            } catch (error) {
+                reject(error);
+            }
+        });
+
+        const readStream = Readable.from(buffer);
+        readStream.pipe(parser);
     });
 }
 
