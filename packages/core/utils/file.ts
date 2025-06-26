@@ -163,7 +163,7 @@ async function parseJSON(buffer: Buffer): Promise<any> {
     }
 }
   
-export async function parseXML(buffer: Buffer): Promise<any> {
+export async function parseXML(buffer: Buffer,loop:boolean = true): Promise<any> {
     const results: any = {};
     let currentElement: any = null;
     const elementStack: any[] = [];
@@ -191,7 +191,7 @@ export async function parseXML(buffer: Buffer): Promise<any> {
         if (trimmed.startsWith('<')) {
             // If text looks like XML, try to parse as XML
             try {
-                const parsedXml = await parseXML(Buffer.from(trimmed));
+                const parsedXml = loop ? await parseXML(Buffer.from(trimmed), false) : JSON.parse(trimmed);
                 if (Object.keys(currentElement)?.length > 0) {
                     currentElement["__cdata"] = parsedXml;
                 } else {
@@ -220,7 +220,7 @@ export async function parseXML(buffer: Buffer): Promise<any> {
         
         try {
             // First try to parse as XML
-            const parsedXml = await parseXML(Buffer.from(cdata.trim()));
+            const parsedXml = loop ? await parseXML(Buffer.from(cdata.trim()), false) : JSON.parse(cdata.trim());
             if(Object.keys(currentElement)?.length > 0) {
                 currentElement["__cdata"] = parsedXml;
             } else {
