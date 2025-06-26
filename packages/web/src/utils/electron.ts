@@ -1,24 +1,3 @@
-// Electron 环境检测工具
-
-declare global {
-  interface Window {
-    electronAPI?: {
-      isElectron: boolean;
-      platform: string;
-      versions: {
-        node: string;
-        chrome: string;
-        electron: string;
-      };
-      // 窗口控制
-      showWindow: () => Promise<void>;
-      hideWindow: () => Promise<void>;
-      getWindowVisible: () => Promise<boolean>;
-      quitApp: () => Promise<void>;
-      // 其他Electron API...
-    };
-  }
-}
 
 /**
  * 检测是否在Electron环境中运行
@@ -62,68 +41,39 @@ export function getPlatform(): string {
   return typeof navigator !== 'undefined' ? navigator.platform : 'unknown';
 }
 
-/**
- * 根据环境获取正确的API端点
- */
-export function getApiEndpoint(): string {
-  const defaultEndpoint = process.env.NEXT_PUBLIC_SUPERGLUE_ENDPOINT || 'http://localhost:3000';
-  
-  if (isElectronEnvironment()) {
-    // Electron环境中，GraphQL服务器在同一进程中运行
-    return defaultEndpoint;
-  }
-  
-  return defaultEndpoint;
-}
 
-/**
- * 窗口控制功能
- */
-export const windowControls = {
-  /**
-   * 显示窗口
-   */
-  show: async (): Promise<void> => {
-    if (isElectronEnvironment() && window.electronAPI?.showWindow) {
-      await window.electronAPI.showWindow();
-    }
-  },
-
-  /**
-   * 隐藏窗口到托盘
-   */
-  hide: async (): Promise<void> => {
-    if (isElectronEnvironment() && window.electronAPI?.hideWindow) {
-      await window.electronAPI.hideWindow();
-    }
-  },
-
-  /**
-   * 获取窗口是否可见
-   */
-  isVisible: async (): Promise<boolean> => {
-    if (isElectronEnvironment() && window.electronAPI?.getWindowVisible) {
-      return await window.electronAPI.getWindowVisible();
-    }
-    return true; // 在浏览器环境中总是可见
-  },
-
-  /**
-   * 退出应用
-   */
-  quit: async (): Promise<void> => {
-    if (isElectronEnvironment() && window.electronAPI?.quitApp) {
-      await window.electronAPI.quitApp();
-    }
-  }
-};
-
-/**
- * Hook for using window controls in React components
- */
-export function useWindowControls() {
-  return {
-    isElectron: isElectronEnvironment(),
-    ...windowControls
-  };
+declare global {
+  interface Window {
+    // 直接声明全局变量，避免修饰符冲突
+    electronAPI: {
+      platform: string;
+      isElectron: boolean;
+      versions: {
+        node: string;
+        chrome: string;
+        electron: string;
+        endPoint: string | undefined;
+        token: string | undefined;
+      };
+      getAppInfo: () => Promise<{
+        version: string;
+        name: string;
+        electronVersion: string;
+        nodeVersion: string;
+        platform: string;
+      }>;
+      getServerStatus: () => Promise<{ started: boolean }>;
+      restartServer: () => Promise<{ success: boolean; error?: string }>;
+      requestLogs: () => Promise<any>;
+      clearLogs: () => Promise<any>;
+      onNewLog: (callback: (log: any) => void) => void;
+      reload: () => void;
+      showWindow: () => Promise<any>;
+      hideWindow: () => Promise<any>;
+      getWindowVisible: () => Promise<boolean>;
+      quitApp: () => Promise<any>;
+      onServerStatusChange: (callback: (status: any) => void) => void;
+      removeAllListeners: (channel: string) => void;
+    };
+  } 
 }
