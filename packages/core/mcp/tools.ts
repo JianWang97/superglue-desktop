@@ -17,43 +17,10 @@ import {
   sample,
   applyJsonataWithValidation,
 } from "../utils/tools.js";
+import { JSON_SCHEMA_TEMPLATES, JsonSchemaTemplateName } from "./schema-templates.js";
 
 const ToolInputSchema = ToolSchema.shape.inputSchema;
 type ToolInput = z.infer<typeof ToolInputSchema>;
-
-// 预设的 JSON Schema 模板
-const JSON_SCHEMA_TEMPLATES = {
-  患者信息: {
-    type: "object",
-    properties: {
-      patientName: { type: "string", description: "患者姓名" },
-      sex: { type: "string", description: "性别" },
-      telephoneNumber: { type: "string", description: "联系电话" },
-      liveAddress: { type: "string", description: "居住地址" },
-      registeredAddress: { type: "string", description: "户籍地址" },
-      identityNumber: { type: "string", description: "证件号码" },
-      medicalTreatmentNumber: { type: "string", description: "病历号" },
-      hisPatientId: { type: "string", description: "HIS患者ID" },
-      hisOtherDiagnoses: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            code: { type: "string", description: "诊断编码" },
-            name: { type: "string", description: "诊断名称" },
-            definiteDiagnosisDate: { type: "string", description: "确诊日期" },
-            visitNumber: { type: "string", description: "就诊号" },
-          },
-          additionalProperties: true,
-        },
-        description: "HIS诊断信息列表",
-      },
-    },
-    required: ["patientName", "hisPatientId"],
-  },
-} as const;
-
-type JsonSchemaTemplateName = keyof typeof JSON_SCHEMA_TEMPLATES;
 
 // 延迟初始化数据存储实例
 let datastore: ReturnType<typeof createDataStore> | null = null;
@@ -70,12 +37,16 @@ function getDataStore() {
 
 const GenerateFinalTransformSchema = z.object({
   workflowId: z.string().describe("要生成最终转换的工作流ID"),
-  payload: z.string().describe("执行工作流的输入数据，JSON字符串格式，例如：'{\"A\":[\"10\",\"20\"]}'"),
+  payload: z
+    .string()
+    .describe(
+      '执行工作流的输入数据，JSON字符串格式，例如：\'{"A":["10","20"]}\''
+    ),
   credentials: z.object({}).optional().describe("工作流执行的身份验证凭据"),
   jsonSchemaTemplate: z
     .string()
     .describe(
-      "预设JSON Schema模板名称（如：患者信息、订单数据、用户档案等），用于生成符合特定结构的JSONata表达式"
+      `预设JSON Schema模板名称（如：${Object.keys(JSON_SCHEMA_TEMPLATES).join(", ")}等），用于生成符合特定结构的JSONata表达式`
     ),
 });
 
@@ -143,7 +114,8 @@ function setupServerHandlers(server: Server) {
     const { name, arguments: args } = request.params;
 
     try {
-      if (name === ToolName.GENERATE_FINAL_TRANSFORM) {        const validatedArgs = GenerateFinalTransformSchema.parse(args);
+      if (name === ToolName.GENERATE_FINAL_TRANSFORM) {
+        const validatedArgs = GenerateFinalTransformSchema.parse(args);
         const {
           workflowId,
           payload: payloadString,
@@ -156,8 +128,12 @@ function setupServerHandlers(server: Server) {
         try {
           payload = JSON.parse(payloadString);
         } catch (error) {
-          throw new Error(`无效的 payload JSON 格式: ${error instanceof Error ? error.message : String(error)}`);
-        }// 1. 获取工作流配置
+          throw new Error(
+            `无效的 payload JSON 格式: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          );
+        } // 1. 获取工作流配置
         const datastore = getDataStore();
         const workflow = await datastore.getWorkflow(workflowId, null);
         if (!workflow) {
