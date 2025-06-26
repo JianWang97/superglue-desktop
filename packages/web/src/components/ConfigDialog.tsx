@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Settings } from 'lucide-react';
 import { Button } from '@/src/components/ui/button';
 import {
@@ -30,6 +30,15 @@ export function ConfigDialog({ onConfigUpdate }: ConfigDialogProps) {
     superglueEndpoint: config.superglueEndpoint || '',
     superglueApiKey: config.superglueApiKey || '',
   });
+
+  useEffect(() => {
+    // 初始化表单数据
+    setFormData({
+      superglueEndpoint: config.superglueEndpoint || '',
+      superglueApiKey: config.superglueApiKey || '',
+    });
+  }, [config]);
+
   const handleSave = () => {
     // 验证输入
     if (!formData.superglueEndpoint.trim()) {
@@ -82,7 +91,8 @@ export function ConfigDialog({ onConfigUpdate }: ConfigDialogProps) {
     });
   };
 
-  return (    <Dialog open={open} onOpenChange={setOpen}>
+  return (    
+  <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button
           variant="ghost"

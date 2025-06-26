@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     node: process.versions.node,
     chrome: process.versions.chrome,
     electron: process.versions.electron,
+    endPoint: process.env.GRAPHQL_ENDPOINT,
+    token: process.env.AUTH_TOKEN,
   },
 
   // 应用信息
@@ -54,29 +56,3 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.removeAllListeners(channel);
   },
 });
-
-// 声明全局类型
-declare global {
-  interface Window {
-    electronAPI: {
-      platform: string;
-      versions: {
-        node: string;
-        chrome: string;
-        electron: string;
-      };
-      getAppInfo: () => Promise<{
-        version: string;
-        name: string;
-        electronVersion: string;
-        nodeVersion: string;
-        platform: string;
-      }>;
-      getServerStatus: () => Promise<{ started: boolean }>;
-      restartServer: () => Promise<{ success: boolean; error?: string }>;
-      reload: () => void;
-      onServerStatusChange: (callback: (status: any) => void) => void;
-      removeAllListeners: (channel: string) => void;
-    };
-  }
-}
