@@ -31,6 +31,7 @@ const WINDOW_CONFIG = {
   width: 1680,
   height: 900,
   autoHideMenuBar: true,
+  title: "Superglue Desktop",
 } as const;
 
 // ==================== Global Variables ====================
